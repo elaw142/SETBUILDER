@@ -1,0 +1,28 @@
+services:
+  playlist-backend:
+    build: ./backend
+    container_name: playlist-backend
+    environment:
+      - SPOTIFY_CLIENT_ID=${SPOTIFY_CLIENT_ID}
+      - SPOTIFY_CLIENT_SECRET=${SPOTIFY_CLIENT_SECRET}
+      - SPOTIFY_REDIRECT_URI=${SPOTIFY_REDIRECT_URI}
+      - FLASK_SECRET_KEY=${FLASK_SECRET_KEY}
+      - AUTH_SUCCESS_REDIRECT=${AUTH_SUCCESS_REDIRECT:-/}
+      - FRONTEND_ORIGIN=${FRONTEND_ORIGIN:-https://setbuilder.emlw.dev}
+      - SESSION_COOKIE_SECURE=${SESSION_COOKIE_SECURE:-true}
+    networks:
+      - web
+
+  playlist-frontend:
+    build: ./frontend
+    container_name: playlist-frontend
+    depends_on:
+      - playlist-backend
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT:-8094}:80"
+    networks:
+      - web
+
+networks:
+  web:
+    external: true
