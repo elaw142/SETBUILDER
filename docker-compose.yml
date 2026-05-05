@@ -19,8 +19,6 @@ services:
     container_name: tracksieve-frontend
     depends_on:
       - tracksieve-backend
-    ports:
-      - "127.0.0.1:${FRONTEND_PORT:-8094}:80"
     networks:
       - web
 
