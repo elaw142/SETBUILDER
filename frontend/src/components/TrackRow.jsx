@@ -1,6 +1,8 @@
-export default function TrackRow({ track, selected, onToggle, direct = false }) {
+import { Play } from "lucide-react";
+
+export default function TrackRow({ track, selected, onToggle, onPreview, direct = false, compact = false }) {
   return (
-    <button type="button" className="track-row" onClick={() => onToggle(track)}>
+    <div className={`track-row ${compact ? "compact" : ""}`} onClick={() => onToggle(track)}>
       <span className={`track-check ${selected ? "selected" : ""}`}>{selected ? "X" : direct ? "+" : ""}</span>
       {track.image ? <img src={track.image} alt="" /> : <span className="track-image-fallback" />}
       <span className="min-w-0">
@@ -9,6 +11,16 @@ export default function TrackRow({ track, selected, onToggle, direct = false }) 
           {track.artist} {track.year ? ` / ${track.year}` : ""}
         </span>
       </span>
-    </button>
+      <button
+        type="button"
+        className="preview-button"
+        onClick={(event) => {
+          event.stopPropagation();
+          onPreview?.(track);
+        }}
+      >
+        <Play size={16} />
+      </button>
+    </div>
   );
 }

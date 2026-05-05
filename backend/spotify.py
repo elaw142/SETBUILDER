@@ -1,5 +1,6 @@
 import base64
 import hashlib
+import json
 import os
 import random
 import secrets
@@ -286,6 +287,45 @@ def era_search(params):
 
 def genres():
     return {"genres": DEFAULT_GENRES}
+
+
+def vibe_plan(prompt):
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        raise SpotifyError("AI vibe planning is not configured", 503)
+
+    model = os.environ.get("AI_MODEL", "claude-haiku-4-5-20251001")
+    response = requests.post(
+        "https://api.anthropic.com/v1/messages",
+        headers={
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        },
+        json={
+            "model": model,
+            "max_tokens": 900,
+            "temperature": 0.4,
+            "system": (
+                "You convert loose playlist vibes into practical Spotify Web API search plans. "
+                "Return only compact JSON with keys: mode, genre, yearStart, yearEnd, seedArtists, "
+                "seedGenres, manualQuery, queryVariants, notes. Use common Spotify genre tags. "
+                "Do not invent obscure parameters. queryVariants must be usable Spotify search strings."
+            ),
+            "messages": [{"role": "user", "content": prompt[:1200]}],
+        },
+        timeout=20,
+    )
+    payload = response.json()
+    if response.status_code >= 400:
+        raise SpotifyError("AI vibe planning failed", response.status_code, payload)
+
+    text = "".join(part.get("text", "") for part in payload.get("content", []) if part.get("type") == "text").strip()
+    try:
+        plan = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise SpotifyError("AI returned an invalid plan", 502, {"error": str(exc), "raw": text})
+    return {"plan": plan}
 
 
 def create_playlist(user_id, name, description, track_uris):

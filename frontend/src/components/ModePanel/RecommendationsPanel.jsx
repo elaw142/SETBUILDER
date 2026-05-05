@@ -1,24 +1,24 @@
 import { Search, X, Zap } from "lucide-react";
 import { useState } from "react";
-import { normalizeTrack } from "../../hooks/useSegments.js";
+import { normalizeTrack } from "../../hooks/usePlaylistWorkspace.js";
 
-export default function RecommendationsPanel({ segment, genres, spotify, segmentsApi }) {
-  const params = segment.params;
+export default function RecommendationsPanel({ genres, spotify, workspace }) {
+  const params = workspace.params;
   const [artistQuery, setArtistQuery] = useState("");
   const [artistResults, setArtistResults] = useState([]);
-  const update = (key, value) => segmentsApi.updateParam(segment.id, key, value);
+  const update = (key, value) => workspace.updateParam(key, value);
 
   const run = async () => {
-    segmentsApi.setStatus(segment.id, "loading");
+    workspace.setStatus("loading");
     try {
       const payload = await spotify.recommendations({
         limit: params.limit,
         seed_artist_names: params.seedArtists.map((artist) => artist.name).join(","),
         seed_genres: params.seedGenres.join(","),
       });
-      segmentsApi.setPool(segment.id, (payload.tracks?.items || []).map(normalizeTrack));
+      workspace.setResults((payload.tracks?.items || []).map(normalizeTrack));
     } catch (err) {
-      segmentsApi.setStatus(segment.id, "error", err.message);
+      workspace.fail(err.message);
     }
   };
 

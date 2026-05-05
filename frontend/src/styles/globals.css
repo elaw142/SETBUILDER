@@ -18,7 +18,8 @@ select {
 }
 
 input,
-select {
+select,
+textarea {
   width: 100%;
   border: 2px solid #111;
   background: #f2efe6;
@@ -28,8 +29,14 @@ select {
 }
 
 input:focus,
-select:focus {
+select:focus,
+textarea:focus {
   box-shadow: 4px 4px 0 #ccff00;
+}
+
+textarea {
+  min-height: 8rem;
+  resize: vertical;
 }
 
 .segment-card {
@@ -66,6 +73,10 @@ select:focus {
   grid-template-columns: repeat(3, 1fr);
   gap: 0.35rem;
   margin-bottom: 1rem;
+}
+
+.mode-tabs.four-tabs {
+  grid-template-columns: repeat(4, 1fr);
 }
 
 .mode-tabs button {
@@ -153,7 +164,7 @@ select:focus {
 
 .track-row {
   display: grid;
-  grid-template-columns: 2.3rem 3rem minmax(0, 1fr);
+  grid-template-columns: 2.3rem 3rem minmax(0, 1fr) 2.3rem;
   align-items: center;
   gap: 0.75rem;
   width: 100%;
@@ -162,6 +173,7 @@ select:focus {
   background: transparent;
   padding: 0.45rem;
   text-align: left;
+  cursor: pointer;
 }
 
 .track-row:hover {
@@ -197,6 +209,49 @@ select:focus {
 
 .track-check.selected {
   background: #ff2d78;
+}
+
+.preview-button {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border: 2px solid #111;
+  background: #ccff00;
+  color: #111;
+}
+
+.track-row:hover .preview-button {
+  border-color: #f2efe6;
+}
+
+.tray-list {
+  max-height: calc(100vh - 16rem);
+  overflow: auto;
+}
+
+.preview-panel {
+  position: fixed;
+  right: 1rem;
+  bottom: 6.5rem;
+  z-index: 40;
+  width: min(28rem, calc(100vw - 2rem));
+  border: 2px solid #111;
+  background: #f2efe6;
+  box-shadow: 8px 8px 0 #111;
+}
+
+.preview-panel iframe {
+  display: block;
+  border: 0;
+}
+
+.plan-card {
+  border: 2px solid #111;
+  background: #f2efe6;
+  padding: 0.8rem;
+  font-size: 0.78rem;
+  text-transform: uppercase;
 }
 
 .chip-row,

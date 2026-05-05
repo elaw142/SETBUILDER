@@ -15,6 +15,7 @@ from spotify import (
     recommendations,
     search_artists,
     search_tracks,
+    vibe_plan,
 )
 
 
@@ -85,6 +86,14 @@ def create_app():
     @app.get("/api/era-search")
     def get_era_search():
         return jsonify(era_search(request.args.to_dict()))
+
+    @app.post("/api/vibe-plan")
+    def get_vibe_plan():
+        payload = request.get_json(force=True) or {}
+        prompt = (payload.get("prompt") or "").strip()
+        if not prompt:
+            return jsonify({"error": "Prompt is required"}), 400
+        return jsonify(vibe_plan(prompt))
 
     @app.get("/api/genres")
     def get_genres():

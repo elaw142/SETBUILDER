@@ -1,17 +1,17 @@
 import { Search } from "lucide-react";
-import { normalizeTrack } from "../../hooks/useSegments.js";
+import { normalizeTrack } from "../../hooks/usePlaylistWorkspace.js";
 
-export default function ManualSearchPanel({ segment, spotify, segmentsApi }) {
-  const params = segment.params;
-  const update = (key, value) => segmentsApi.updateParam(segment.id, key, value);
+export default function ManualSearchPanel({ spotify, workspace }) {
+  const params = workspace.params;
+  const update = (key, value) => workspace.updateParam(key, value);
 
   const run = async () => {
-    segmentsApi.setStatus(segment.id, "loading");
+    workspace.setStatus("loading");
     try {
       const payload = await spotify.searchTracks(params.query, params.limit);
-      segmentsApi.setPool(segment.id, (payload.tracks?.items || []).map(normalizeTrack));
+      workspace.setResults((payload.tracks?.items || []).map(normalizeTrack));
     } catch (err) {
-      segmentsApi.setStatus(segment.id, "error", err.message);
+      workspace.fail(err.message);
     }
   };
 

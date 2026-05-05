@@ -43,3 +43,5 @@ GitHub Actions deploys on pushes to `main` over SSH. Required repository secrets
 - `SSH_PORT`: `22`
 
 The server also needs `/opt/setbuilder/.env` populated with Spotify credentials before the first deploy can succeed.
+
+AI vibe planning is optional. Set `ANTHROPIC_API_KEY` in `/opt/setbuilder/.env` to enable it; the default model is `claude-haiku-4-5-20251001`.

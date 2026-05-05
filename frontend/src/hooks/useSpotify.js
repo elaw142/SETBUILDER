@@ -63,6 +63,11 @@ export function useSpotify() {
       api(`/api/search?q=${encodeURIComponent(query)}&limit=${limit}&variance=${variance}`),
     searchArtists: (query, limit = 10) => api(`/api/artists/search?q=${encodeURIComponent(query)}&limit=${limit}`),
     eraSearch: (params) => api(`/api/era-search?${new URLSearchParams(params).toString()}`),
+    vibePlan: (prompt) =>
+      api("/api/vibe-plan", {
+        method: "POST",
+        body: JSON.stringify({ prompt }),
+      }),
     recommendations: (params) => api(`/api/recommendations?${new URLSearchParams(params).toString()}`),
     createPlaylist: (payload) =>
       api("/api/playlist/create", {
