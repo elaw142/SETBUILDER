@@ -45,7 +45,7 @@ export default function VibePanel({ spotify, workspace }) {
     setLastSearch(null);
     try {
       const started = await spotify.vibeSearch(prompt, workspace.params.limit);
-      const payload = await waitForJob(started.id);
+      const payload = isTerminalJob(started) ? started.result : await waitForJob(started.id);
       workspace.setResults((payload.tracks?.items || []).map(normalizeTrack));
       if (payload.rateLimited) {
         const waitTime = formatRetry(payload.retryAfter);
@@ -64,15 +64,18 @@ export default function VibePanel({ spotify, workspace }) {
 
   const waitForJob = async (jobId) => {
     if (!jobId) throw new Error("Vibe search did not start.");
-    for (let attempt = 0; attempt < 80; attempt += 1) {
-      await new Promise((resolve) => window.setTimeout(resolve, attempt < 3 ? 700 : 1500));
+    const delays = [1500, 4000, 8000, 15000, 30000];
+    for (let attempt = 0; attempt < delays.length; attempt += 1) {
+      await new Promise((resolve) => window.setTimeout(resolve, delays[attempt]));
       const job = await spotify.vibeSearchJob(jobId);
       if (job.message) workspace.setLoadingMessage(job.message);
-      if (job.status === "complete" || job.status === "rate_limited") return job.result;
+      if (isTerminalJob(job)) return job.result;
       if (job.status === "error") throw new Error(job.message || job.error?.error || "Vibe search failed.");
     }
-    throw new Error("Vibe search is still running. Try again in a moment.");
+    throw new Error("Spotify is still taking too long. Try again later instead of keeping this page polling.");
   };
+
+  const isTerminalJob = (job) => job?.status === "complete" || job?.status === "rate_limited";
 
   return (
     <div className="control-stack">

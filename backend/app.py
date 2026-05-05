@@ -11,6 +11,7 @@ from spotify import (
     build_authorize_url,
     clear_token,
     create_playlist,
+    discovery_cooldown,
     exchange_code,
     genres,
     era_search,
@@ -61,13 +62,7 @@ def _run_vibe_job(job_id, prompt, limit):
                 job_id,
                 status="rate_limited",
                 message="Spotify is rate limiting searches",
-                result={
-                    "rateLimited": True,
-                    "retryAfter": retry_after,
-                    "tracks": {"items": [], "limit": limit, "offset": 0},
-                    "matchedArtists": [],
-                    "plan": {},
-                },
+                result=_rate_limited_result(retry_after, limit),
                 completedAt=time.time(),
             )
             return
@@ -88,6 +83,16 @@ def _run_vibe_job(job_id, prompt, limit):
             statusCode=500,
             completedAt=time.time(),
         )
+
+
+def _rate_limited_result(retry_after, limit=30):
+    return {
+        "rateLimited": True,
+        "retryAfter": retry_after,
+        "tracks": {"items": [], "limit": limit, "offset": 0},
+        "matchedArtists": [],
+        "plan": {},
+    }
 
 
 def create_app():
@@ -171,17 +176,23 @@ def create_app():
         prompt = (payload.get("prompt") or "").strip()
         if not prompt:
             return jsonify({"error": "Prompt is required"}), 400
+        limit = payload.get("limit", 30)
+        cooldown = discovery_cooldown()
         job_id = uuid.uuid4().hex
         with VIBE_JOBS_LOCK:
             VIBE_JOBS[job_id] = {
                 "id": job_id,
-                "status": "queued",
-                "message": "Queued",
+                "status": "rate_limited" if cooldown["active"] else "queued",
+                "message": "Spotify is rate limiting searches" if cooldown["active"] else "Queued",
                 "createdAt": time.time(),
                 "prompt": prompt[:120],
             }
-        thread = threading.Thread(target=_run_vibe_job, args=(job_id, prompt, payload.get("limit", 30)), daemon=True)
-        thread.start()
+            if cooldown["active"]:
+                VIBE_JOBS[job_id]["result"] = _rate_limited_result(cooldown["retry_after"], limit)
+                VIBE_JOBS[job_id]["completedAt"] = time.time()
+        if not cooldown["active"]:
+            thread = threading.Thread(target=_run_vibe_job, args=(job_id, prompt, limit), daemon=True)
+            thread.start()
         return jsonify(_get_vibe_job(job_id)), 202
 
     @app.get("/api/vibe-search/<job_id>")

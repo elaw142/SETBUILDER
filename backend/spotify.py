@@ -189,6 +189,11 @@ def api_request(method, path, **kwargs):
     return spotify_request(method, path, current_token(), **kwargs)
 
 
+def discovery_cooldown():
+    remaining = max(0, READ_COOLDOWN.get("until", 0) - int(time.time()))
+    return {"active": remaining > 0, "retry_after": str(remaining) if remaining > 0 else ""}
+
+
 def read_api_request(method, path, **kwargs):
     now = int(time.time())
     if READ_COOLDOWN.get("until", 0) > now:
