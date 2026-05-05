@@ -13,6 +13,7 @@ export default function RecommendationsPanel({ genres, spotify, workspace }) {
     try {
       const payload = await spotify.recommendations({
         limit: params.limit,
+        seed_artist_ids: params.seedArtists.map((artist) => artist.id).join(","),
         seed_artist_names: params.seedArtists.map((artist) => artist.name).join(","),
         seed_genres: params.seedGenres.join(","),
       });
@@ -47,7 +48,14 @@ export default function RecommendationsPanel({ genres, spotify, workspace }) {
       <div className="control-label">
         Seed Artists
         <div className="flex gap-2">
-          <input value={artistQuery} onChange={(event) => setArtistQuery(event.target.value)} placeholder="search artist name" />
+          <input
+            value={artistQuery}
+            onChange={(event) => setArtistQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") findArtists();
+            }}
+            placeholder="search artist name"
+          />
           <button className="square-button shrink-0" onClick={findArtists} type="button">
             <Search size={20} />
           </button>
@@ -72,17 +80,33 @@ export default function RecommendationsPanel({ genres, spotify, workspace }) {
           </div>
         )}
       </div>
-      <label className="control-label">
+      <div className="control-label">
         Seed Genres
-        <select value={params.seedGenres[0] || ""} onChange={(event) => update("seedGenres", event.target.value ? [event.target.value] : [])}>
-          <option value="">Choose a genre</option>
+        <select
+          value=""
+          onChange={(event) => {
+            const genre = event.target.value;
+            if (genre && !params.seedGenres.includes(genre)) update("seedGenres", [...params.seedGenres, genre]);
+          }}
+        >
+          <option value="">Add a genre</option>
           {genres.map((genre) => (
             <option key={genre} value={genre}>
               {genre}
             </option>
           ))}
         </select>
-      </label>
+        {params.seedGenres.length > 0 && (
+          <div className="chip-row">
+            {params.seedGenres.map((genre) => (
+              <button key={genre} type="button" className="artist-chip" onClick={() => update("seedGenres", params.seedGenres.filter((item) => item !== genre))}>
+                {genre}
+                <X size={14} />
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
       <label className="control-label">
         Results
         <input type="number" min="1" max="50" value={params.limit} onChange={(event) => update("limit", Number(event.target.value))} />

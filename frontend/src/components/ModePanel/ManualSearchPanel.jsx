@@ -8,7 +8,7 @@ export default function ManualSearchPanel({ spotify, workspace }) {
   const run = async () => {
     workspace.setStatus("loading");
     try {
-      const payload = await spotify.searchTracks(params.query, params.limit);
+      const payload = await spotify.generousSearchTracks(params.query, params.limit);
       workspace.setResults((payload.tracks?.items || []).map(normalizeTrack));
     } catch (err) {
       workspace.fail(err.message);
@@ -19,7 +19,14 @@ export default function ManualSearchPanel({ spotify, workspace }) {
     <div className="control-stack">
       <label className="control-label">
         Track Search
-        <input value={params.query} onChange={(event) => update("query", event.target.value)} placeholder="song, artist, both" />
+        <input
+          value={params.query}
+          onChange={(event) => update("query", event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") run();
+          }}
+          placeholder="song, artist, both"
+        />
       </label>
       <label className="control-label">
         Results

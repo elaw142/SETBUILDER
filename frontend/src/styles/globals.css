@@ -39,20 +39,10 @@ textarea {
   resize: vertical;
 }
 
-.segment-card {
+.workspace-panel {
   border: 2px solid #111;
   background: #f2efe6;
   box-shadow: 8px 8px 0 #111;
-}
-
-.segment-title {
-  border: 0;
-  border-bottom: 2px solid #111;
-  background: transparent;
-  padding: 0;
-  font-family: "Bebas Neue", sans-serif;
-  font-size: clamp(3rem, 8vw, 5.5rem);
-  line-height: 0.9;
 }
 
 .control-label {
@@ -244,6 +234,16 @@ textarea {
 .preview-panel iframe {
   display: block;
   border: 0;
+}
+
+.preview-audio {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.85rem;
+}
+
+.preview-audio audio {
+  width: 100%;
 }
 
 .plan-card {

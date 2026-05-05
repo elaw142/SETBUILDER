@@ -4,6 +4,7 @@ import json
 import os
 import random
 import secrets
+import re
 import time
 from urllib.parse import urlencode
 
@@ -34,6 +35,7 @@ DEFAULT_GENRES = [
     "reggae",
     "classical",
 ]
+DEFAULT_MARKET = os.environ.get("SPOTIFY_MARKET", "NZ")
 
 
 class SpotifyError(RuntimeError):
@@ -191,7 +193,13 @@ def search_page(query, item_type="track", limit=10, offset=0):
     return api_request(
         "GET",
         "/search",
-        params={"q": query, "type": item_type, "limit": clamp_page_limit(limit), "offset": max(int(offset), 0)},
+        params={
+            "q": query,
+            "type": item_type,
+            "limit": clamp_page_limit(limit),
+            "offset": max(int(offset), 0),
+            "market": DEFAULT_MARKET,
+        },
     )
 
 
@@ -199,19 +207,26 @@ def search_artists(query, limit=10):
     return search_page(query, "artist", limit)
 
 
-def unique_tracks(items):
+def artist_top_tracks(artist_id):
+    payload = api_request("GET", f"/artists/{artist_id}/top-tracks", params={"market": DEFAULT_MARKET})
+    return payload.get("tracks") or []
+
+
+def unique_tracks(items, min_popularity=0):
     seen = set()
     tracks = []
     for track in items:
         track_id = track.get("id")
         if not track_id or track_id in seen:
             continue
+        if int(track.get("popularity") or 0) < min_popularity:
+            continue
         seen.add(track_id)
         tracks.append(track)
     return tracks
 
 
-def search_tracks(query, limit=20, offset=0, variance=False):
+def search_tracks(query, limit=20, offset=0, variance=False, min_popularity=0):
     total_limit = clamp_total_limit(limit)
     page_offsets = list(range(max(int(offset), 0), max(int(offset), 0) + total_limit + 30, 10))
     if variance:
@@ -226,7 +241,7 @@ def search_tracks(query, limit=20, offset=0, variance=False):
         last_payload = payload
         page_items = payload.get("tracks", {}).get("items") or []
         items.extend(page_items)
-        items = unique_tracks(items)
+        items = unique_tracks(items, min_popularity)
         if len(items) >= total_limit:
             break
         if not payload.get("tracks", {}).get("next"):
@@ -239,35 +254,94 @@ def search_tracks(query, limit=20, offset=0, variance=False):
     return payload
 
 
-def search_track_variants(queries, limit=20):
+def search_track_variants(queries, limit=20, variance=True, shuffle_queries=True, shuffle_results=True, min_popularity=0):
     total_limit = clamp_total_limit(limit)
     items = []
     usable_queries = [query for query in queries if query.strip()]
-    random.shuffle(usable_queries)
+    if shuffle_queries:
+        random.shuffle(usable_queries)
     for query in usable_queries:
-        payload = search_tracks(query, max(10, total_limit), variance=True)
+        payload = search_tracks(query, max(10, total_limit), variance=variance, min_popularity=min_popularity)
         items.extend(payload.get("tracks", {}).get("items") or [])
-        items = unique_tracks(items)
+        items = unique_tracks(items, min_popularity)
         if len(items) >= total_limit:
             break
+    if shuffle_results:
+        random.shuffle(items)
     return {"tracks": {"items": items[:total_limit], "limit": total_limit, "offset": 0}}
+
+
+def adjacent_swap_variants(word):
+    variants = []
+    if len(word) < 4 or len(word) > 12:
+        return variants
+    for index in range(len(word) - 1):
+        chars = list(word)
+        chars[index], chars[index + 1] = chars[index + 1], chars[index]
+        variants.append("".join(chars))
+    return variants
+
+
+def forgiving_queries(query):
+    clean = re.sub(r"\s+", " ", query.strip())
+    words = clean.split(" ")
+    variants = [clean]
+    if len(words) > 1:
+        variants.append(" ".join(words[:-1]))
+    for word_index, word in enumerate(words):
+        for swapped in adjacent_swap_variants(word.lower()):
+            next_words = words[:]
+            next_words[word_index] = swapped
+            variants.append(" ".join(next_words))
+    deduped = []
+    for variant in variants:
+        if variant and variant not in deduped:
+            deduped.append(variant)
+    return deduped[:35]
+
+
+def generous_search(query, limit=20):
+    return search_track_variants(
+        forgiving_queries(query),
+        limit,
+        variance=False,
+        shuffle_queries=False,
+        shuffle_results=False,
+    )
 
 
 def recommendations(params):
     genres = [genre for genre in (params.get("seed_genres") or "").split(",") if genre]
+    artist_ids = [artist_id for artist_id in (params.get("seed_artist_ids") or "").split(",") if artist_id]
     artist_names = [artist for artist in (params.get("seed_artist_names") or "").split(",") if artist]
+    total_limit = clamp_total_limit(params.get("limit", 20))
+    items = []
     queries = []
+
+    if artist_ids:
+        for artist_id in artist_ids[:8]:
+            items.extend(artist_top_tracks(artist_id))
+        random.shuffle(items)
+
     if genres and artist_names:
         for genre in genres[:3]:
-            for artist in artist_names[:3]:
-                queries.append(f"genre:{genre} {artist}")
+            for artist in artist_names[:5]:
+                queries.append(f'genre:{genre} artist:"{artist}"')
     elif genres:
-        queries.extend([f"genre:{genre}" for genre in genres[:3]])
+        queries.extend([f"genre:{genre}" for genre in genres[:5]])
     elif artist_names:
-        queries.extend(artist_names[:5])
-    else:
+        queries.extend([f'artist:"{artist}"' for artist in artist_names[:8]])
+        queries.extend(artist_names[:8])
+    elif not items:
         queries.extend(["tag:new", "tag:hipster", "year:2020-2026"])
-    return search_track_variants(queries, params.get("limit", 20))
+
+    if queries:
+        payload = search_track_variants(queries, max(total_limit, 30), min_popularity=10)
+        items.extend(payload.get("tracks", {}).get("items") or [])
+
+    tracks = unique_tracks(items)
+    random.shuffle(tracks)
+    return {"tracks": {"items": tracks[:total_limit], "limit": total_limit, "offset": 0}}
 
 
 def era_search(params):
@@ -280,9 +354,12 @@ def era_search(params):
     years = list(range(start, end + 1))
     random.shuffle(years)
     decade_query = f"genre:{genre} year:{start}-{end}" if genre else f"year:{start}-{end}"
-    queries = [decade_query]
+    queries = [decade_query, f"{genre} {start}s" if genre else f"{start}s"]
     queries.extend(f"genre:{genre} year:{year}" if genre else f"year:{year}" for year in years[:10])
-    return search_track_variants(queries, params.get("limit", 30))
+    payload = search_track_variants(queries, params.get("limit", 30), min_popularity=35)
+    if len(payload.get("tracks", {}).get("items") or []) < 10:
+        payload = search_track_variants(queries, params.get("limit", 30), min_popularity=15)
+    return payload
 
 
 def genres():
@@ -290,37 +367,36 @@ def genres():
 
 
 def vibe_plan(prompt):
-    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-    if not api_key:
-        raise SpotifyError("AI vibe planning is not configured", 503)
-
-    model = os.environ.get("AI_MODEL", "claude-haiku-4-5-20251001")
+    model = os.environ.get("OLLAMA_MODEL", "qwen3:4b-instruct")
+    ollama_url = os.environ.get("OLLAMA_URL", "http://host.docker.internal:11434")
     response = requests.post(
-        "https://api.anthropic.com/v1/messages",
-        headers={
-            "x-api-key": api_key,
-            "anthropic-version": "2023-06-01",
-            "content-type": "application/json",
-        },
+        f"{ollama_url.rstrip('/')}/api/chat",
         json={
             "model": model,
-            "max_tokens": 900,
-            "temperature": 0.4,
-            "system": (
-                "You convert loose playlist vibes into practical Spotify Web API search plans. "
-                "Return only compact JSON with keys: mode, genre, yearStart, yearEnd, seedArtists, "
-                "seedGenres, manualQuery, queryVariants, notes. Use common Spotify genre tags. "
-                "Do not invent obscure parameters. queryVariants must be usable Spotify search strings."
-            ),
-            "messages": [{"role": "user", "content": prompt[:1200]}],
+            "stream": False,
+            "format": "json",
+            "keep_alive": os.environ.get("OLLAMA_KEEP_ALIVE", "2m"),
+            "options": {"temperature": 0.2, "num_ctx": 2048},
+            "messages": [
+                {
+                    "role": "system",
+                    "content": (
+                        "You convert loose playlist vibes into practical Spotify search plans. "
+                        "Return only JSON with keys: genre, yearStart, yearEnd, seedGenres, manualQuery, "
+                        "queryVariants, notes. queryVariants must be usable Spotify track search strings. "
+                        "Prefer widely available English-language music unless asked otherwise."
+                    ),
+                },
+                {"role": "user", "content": prompt[:1200]},
+            ],
         },
-        timeout=20,
+        timeout=90,
     )
     payload = response.json()
     if response.status_code >= 400:
-        raise SpotifyError("AI vibe planning failed", response.status_code, payload)
+        raise SpotifyError("Local AI vibe planning failed", response.status_code, payload)
 
-    text = "".join(part.get("text", "") for part in payload.get("content", []) if part.get("type") == "text").strip()
+    text = (payload.get("message", {}) or {}).get("content", "").strip()
     try:
         plan = json.loads(text)
     except json.JSONDecodeError as exc:

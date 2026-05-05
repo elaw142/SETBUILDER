@@ -27,7 +27,7 @@ export default function ExportBar({ user, playlistName, description, selectedTra
       <div className="mx-auto grid max-w-[1500px] items-center gap-3 px-4 py-3 md:grid-cols-[1fr_auto] lg:px-6">
         <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1">
           <span className="font-display text-5xl leading-none text-acid">{selectedTracks.length} TRACKS</span>
-          <span className="text-xs uppercase text-bg/70">{status || "Selected tracks export in segment order"}</span>
+          <span className="text-xs uppercase text-bg/70">{status || "Selected tracks export in tray order"}</span>
         </div>
         <button
           className="flex min-h-14 items-center justify-center gap-2 border-2 border-acid bg-acid px-6 font-display text-3xl uppercase text-ink disabled:cursor-not-allowed disabled:opacity-50"

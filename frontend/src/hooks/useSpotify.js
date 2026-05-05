@@ -61,6 +61,7 @@ export function useSpotify() {
     },
     searchTracks: (query, limit = 30, variance = false) =>
       api(`/api/search?q=${encodeURIComponent(query)}&limit=${limit}&variance=${variance}`),
+    generousSearchTracks: (query, limit = 30) => api(`/api/search?q=${encodeURIComponent(query)}&limit=${limit}&generous=true`),
     searchArtists: (query, limit = 10) => api(`/api/artists/search?q=${encodeURIComponent(query)}&limit=${limit}`),
     eraSearch: (params) => api(`/api/era-search?${new URLSearchParams(params).toString()}`),
     vibePlan: (prompt) =>

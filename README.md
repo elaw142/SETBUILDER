@@ -1,6 +1,6 @@
 # SETBUILDER
 
-A self-hosted Spotify playlist builder that composes playlists from independently curated vibe segments.
+A self-hosted Spotify playlist research tool for finding, previewing, curating, and exporting tracks.
 
 ## Local Development
 
@@ -44,4 +44,4 @@ GitHub Actions deploys on pushes to `main` over SSH. Required repository secrets
 
 The server also needs `/opt/setbuilder/.env` populated with Spotify credentials before the first deploy can succeed.
 
-AI vibe planning is optional. Set `ANTHROPIC_API_KEY` in `/opt/setbuilder/.env` to enable it; the default model is `claude-haiku-4-5-20251001`.
+AI vibe planning uses local Ollama on the server. The default model is `qwen3:4b-instruct`, reached through `OLLAMA_URL`.

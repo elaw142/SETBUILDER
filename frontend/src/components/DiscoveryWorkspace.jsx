@@ -17,7 +17,7 @@ export default function DiscoveryWorkspace({ genres, spotify, workspace }) {
 
   return (
     <section className="mx-auto grid w-full max-w-[1500px] gap-4 px-4 py-4 lg:grid-cols-[420px_1fr_360px] lg:px-6">
-      <aside className="segment-card p-4">
+      <aside className="workspace-panel p-4">
         <div className="mb-4 border-b-2 border-ink pb-3">
           <p className="font-display text-6xl leading-none">DISCOVERY</p>
           <p className="text-xs uppercase text-muted">Find candidates, then keep the good ones</p>
@@ -36,7 +36,7 @@ export default function DiscoveryWorkspace({ genres, spotify, workspace }) {
         {workspace.mode === "manual" && <ManualSearchPanel {...panelProps} />}
       </aside>
 
-      <section className="segment-card min-h-[520px] p-4">
+      <section className="workspace-panel min-h-[520px] p-4">
         <div className="mb-3 flex items-baseline justify-between border-b-2 border-ink pb-2">
           <h2 className="font-display text-5xl">Candidate Pool</h2>
           <span className="text-xs uppercase text-muted">{workspace.pool.length} found</span>
@@ -61,7 +61,7 @@ export default function DiscoveryWorkspace({ genres, spotify, workspace }) {
         </div>
       </section>
 
-      <aside className="segment-card p-4">
+      <aside className="workspace-panel p-4">
         <div className="mb-3 flex items-baseline justify-between border-b-2 border-ink pb-2">
           <h2 className="font-display text-5xl">Playlist Tray</h2>
           <span className="text-xs uppercase text-muted">{workspace.playlist.length} kept</span>

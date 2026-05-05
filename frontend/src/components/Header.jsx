@@ -15,7 +15,7 @@ export default function Header({
       <div className="mx-auto grid max-w-[1500px] gap-3 px-4 py-4 lg:grid-cols-[280px_1fr_auto] lg:px-6">
         <div>
           <p className="font-display text-7xl leading-none tracking-normal">SETBUILDER</p>
-          <p className="text-xs uppercase text-muted">Segmented Spotify playlist control</p>
+          <p className="text-xs uppercase text-muted">Spotify playlist research desk</p>
         </div>
 
         <div className="grid gap-2 md:grid-cols-[1fr_1fr]">

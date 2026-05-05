@@ -20,6 +20,7 @@ export function normalizeTrack(track) {
     artist: artists.map((artist) => artist.name).join(", "),
     year: album.release_date ? album.release_date.slice(0, 4) : "",
     image: album.images?.at(-1)?.url || album.images?.[0]?.url || "",
+    previewUrl: track.preview_url || "",
     popularity: track.popularity || 0,
   };
 }

@@ -10,8 +10,12 @@ services:
       - AUTH_SUCCESS_REDIRECT=${AUTH_SUCCESS_REDIRECT:-/}
       - FRONTEND_ORIGIN=${FRONTEND_ORIGIN:-https://setbuilder.emlw.dev}
       - SESSION_COOKIE_SECURE=${SESSION_COOKIE_SECURE:-true}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - AI_MODEL=${AI_MODEL:-claude-haiku-4-5-20251001}
+      - SPOTIFY_MARKET=${SPOTIFY_MARKET:-NZ}
+      - OLLAMA_URL=${OLLAMA_URL:-http://host.docker.internal:11434}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen3:4b-instruct}
+      - OLLAMA_KEEP_ALIVE=${OLLAMA_KEEP_ALIVE:-2m}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - web
 

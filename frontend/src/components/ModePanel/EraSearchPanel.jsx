@@ -27,16 +27,22 @@ export default function EraSearchPanel({ spotify, workspace }) {
     <div className="control-stack">
       <label className="control-label">
         Genre Tag
-        <input value={params.genre} onChange={(event) => update("genre", event.target.value)} />
+        <input
+          value={params.genre}
+          onChange={(event) => update("genre", event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") run();
+          }}
+        />
       </label>
       <div className="grid grid-cols-2 gap-3">
         <label className="control-label">
           From
-          <input type="number" value={params.yearStart} onChange={(event) => update("yearStart", Number(event.target.value))} />
+          <input type="number" value={params.yearStart} onChange={(event) => update("yearStart", Number(event.target.value))} onKeyDown={(event) => event.key === "Enter" && run()} />
         </label>
         <label className="control-label">
           To
-          <input type="number" value={params.yearEnd} onChange={(event) => update("yearEnd", Number(event.target.value))} />
+          <input type="number" value={params.yearEnd} onChange={(event) => update("yearEnd", Number(event.target.value))} onKeyDown={(event) => event.key === "Enter" && run()} />
         </label>
       </div>
       <label className="control-label">

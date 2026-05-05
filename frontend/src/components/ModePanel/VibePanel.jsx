@@ -45,6 +45,9 @@ export default function VibePanel({ spotify, workspace }) {
         <textarea
           value={prompt}
           onChange={(event) => setPrompt(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) planVibe();
+          }}
           placeholder="glossy 2012 tumblr pop, sad dancefloor, not too obvious"
         />
       </label>

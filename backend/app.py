@@ -14,6 +14,7 @@ from spotify import (
     me,
     recommendations,
     search_artists,
+    generous_search,
     search_tracks,
     vibe_plan,
 )
@@ -63,6 +64,8 @@ def create_app():
         query = request.args.get("q", "").strip()
         if not query:
             return jsonify({"tracks": {"items": []}})
+        if request.args.get("generous", "false").lower() == "true":
+            return jsonify(generous_search(query, request.args.get("limit", 20)))
         return jsonify(
             search_tracks(
                 query,
