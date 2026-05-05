@@ -40,7 +40,7 @@ export default function EraSearchPanel({ segment, spotify, segmentsApi }) {
       <SliderField label="Valence Sort Bias" value={params.valence} onChange={(value) => update("valence", value)} />
       <label className="control-label">
         Results
-        <input type="number" min="10" max="50" value={params.limit} onChange={(event) => update("limit", Number(event.target.value))} />
+        <input type="number" min="1" max="10" value={params.limit} onChange={(event) => update("limit", Number(event.target.value))} />
       </label>
       <button className="action-button" onClick={run}>
         <Radio size={22} strokeWidth={3} /> Search Era

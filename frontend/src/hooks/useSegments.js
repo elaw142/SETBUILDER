@@ -7,7 +7,7 @@ const starterParams = {
   valence: [0.25, 0.85],
   danceability: [0.35, 0.95],
   tempo: [80, 170],
-  limit: 20,
+  limit: 10,
   genre: "pop",
   yearStart: 2010,
   yearEnd: 2019,

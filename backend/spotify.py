@@ -13,6 +13,25 @@ SPOTIFY_AUTH_URL = "https://accounts.spotify.com/authorize"
 SPOTIFY_TOKEN_URL = "https://accounts.spotify.com/api/token"
 SPOTIFY_API_BASE = "https://api.spotify.com/v1"
 SCOPES = "playlist-modify-public playlist-modify-private user-read-private"
+DEFAULT_GENRES = [
+    "pop",
+    "rock",
+    "hip-hop",
+    "electronic",
+    "dance",
+    "r-n-b",
+    "indie",
+    "alternative",
+    "metal",
+    "punk",
+    "jazz",
+    "soul",
+    "country",
+    "folk",
+    "latin",
+    "reggae",
+    "classical",
+]
 
 
 class SpotifyError(RuntimeError):
@@ -162,36 +181,29 @@ def search_tracks(query, limit=20):
     return api_request(
         "GET",
         "/search",
-        params={"q": query, "type": "track", "limit": min(max(int(limit), 1), 50)},
+        params={"q": query, "type": "track", "limit": clamp_limit(limit)},
     )
 
 
+def clamp_limit(limit):
+    return min(max(int(limit), 1), 10)
+
+
 def recommendations(params):
-    allowed = {
-        "limit",
-        "seed_artists",
-        "seed_genres",
-        "seed_tracks",
-        "min_energy",
-        "max_energy",
-        "target_energy",
-        "min_valence",
-        "max_valence",
-        "target_valence",
-        "min_danceability",
-        "max_danceability",
-        "target_danceability",
-        "min_tempo",
-        "max_tempo",
-        "target_tempo",
-    }
-    clean = {key: value for key, value in params.items() if key in allowed and value not in ("", None)}
-    clean["limit"] = min(max(int(clean.get("limit", 20)), 1), 50)
-    return api_request("GET", "/recommendations", params=clean)
+    genres = [genre for genre in (params.get("seed_genres") or "").split(",") if genre]
+    artists = [artist for artist in (params.get("seed_artists") or "").split(",") if artist]
+    query_parts = []
+    if genres:
+        query_parts.append(f"genre:{genres[0]}")
+    if artists:
+        query_parts.append(artists[0])
+    if not query_parts:
+        query_parts.append("tag:new")
+    return search_tracks(" ".join(query_parts), params.get("limit", 10))
 
 
 def genres():
-    return api_request("GET", "/recommendations/available-genre-seeds")
+    return {"genres": DEFAULT_GENRES}
 
 
 def create_playlist(user_id, name, description, track_uris):

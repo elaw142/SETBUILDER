@@ -51,7 +51,7 @@ export default function RecommendationsPanel({ segment, genres, spotify, segment
       <SliderField label="Tempo" value={params.tempo} min={50} max={220} step={1} onChange={(value) => update("tempo", value)} />
       <label className="control-label">
         Results
-        <input type="number" min="10" max="50" value={params.limit} onChange={(event) => update("limit", Number(event.target.value))} />
+        <input type="number" min="1" max="10" value={params.limit} onChange={(event) => update("limit", Number(event.target.value))} />
       </label>
       <button className="action-button" onClick={run}>
         <Zap size={22} strokeWidth={3} /> Build Pool
