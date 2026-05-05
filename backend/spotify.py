@@ -173,6 +173,8 @@ def api_request(method, path, **kwargs):
     except ValueError:
         payload = {"error": response.text}
     if response.status_code >= 400:
+        if response.status_code == 429:
+            payload["retry_after"] = response.headers.get("Retry-After", "")
         raise SpotifyError("Spotify API request failed", response.status_code, payload)
     return payload
 
@@ -267,6 +269,15 @@ def safe_artist_search_tracks(artist_name, limit=5):
     except SpotifyError as exc:
         if exc.status_code == 429:
             return []
+        raise
+
+
+def safe_search_page(query, item_type="track", limit=10, offset=0):
+    try:
+        return search_page(query, item_type, limit, offset)
+    except SpotifyError as exc:
+        if exc.status_code == 429:
+            return {"rate_limited": True, "retry_after": exc.payload.get("retry_after", ""), f"{item_type}s": {"items": []}}
         raise
 
 
@@ -493,19 +504,41 @@ def vibe_search(prompt, limit=30):
     if len(prompt_artists) >= 2:
         items = []
         matched_artists = []
-        artist_limit = min(len(prompt_artists), 6)
+        retry_after = ""
+        broad_query = " ".join(prompt_artists[:6])
+        broad_payload = safe_search_page(broad_query, "track", min(total_limit, 10), 0)
+        retry_after = broad_payload.get("retry_after", "") or retry_after
+        items.extend(broad_payload.get("tracks", {}).get("items") or [])
+
+        artist_limit = min(len(prompt_artists), 3)
         per_artist_limit = max(2, min(5, (total_limit // max(artist_limit, 1)) + 1))
-        for artist_name in prompt_artists[:artist_limit]:
-            matched_artists.append({"id": "", "name": artist_name})
-            tracks = safe_artist_search_tracks(artist_name, per_artist_limit)
-            random.shuffle(tracks)
-            items.extend(tracks[:per_artist_limit])
+        if not broad_payload.get("rate_limited"):
+            for artist_name in prompt_artists[:artist_limit]:
+                matched_artists.append({"id": "", "name": artist_name})
+                tracks = safe_artist_search_tracks(artist_name, per_artist_limit)
+                random.shuffle(tracks)
+                items.extend(tracks[:per_artist_limit])
+
+        if broad_payload.get("rate_limited") and not items:
+            return {
+                "plan": {"seedArtists": prompt_artists},
+                "matchedArtists": [{"id": "", "name": name} for name in prompt_artists[:artist_limit]],
+                "rateLimited": True,
+                "retryAfter": retry_after,
+                "tracks": {"items": [], "limit": total_limit, "offset": 0},
+            }
+
+        if not matched_artists:
+            for artist_name in prompt_artists[:artist_limit]:
+                matched_artists.append({"id": "", "name": artist_name})
 
         tracks = unique_tracks(items)
         random.shuffle(tracks)
         return {
             "plan": {"seedArtists": prompt_artists},
             "matchedArtists": matched_artists,
+            "rateLimited": broad_payload.get("rate_limited", False),
+            "retryAfter": retry_after,
             "tracks": {"items": tracks[:total_limit], "limit": total_limit, "offset": 0},
         }
 

@@ -36,6 +36,11 @@ export default function VibePanel({ spotify, workspace }) {
     try {
       const payload = await spotify.vibeSearch(prompt, workspace.params.limit);
       workspace.setResults((payload.tracks?.items || []).map(normalizeTrack));
+      if (payload.rateLimited) {
+        const retryText = payload.retryAfter ? ` Spotify says to wait about ${payload.retryAfter} seconds before trying again.` : " Spotify is cooling this app down for a moment.";
+        workspace.fail(`Spotify rate limited the search.${retryText}`);
+        return;
+      }
       setLastSearch({
         count: payload.tracks?.items?.length || 0,
         artists: payload.matchedArtists?.map((artist) => artist.name).slice(0, 6) || [],
