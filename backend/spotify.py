@@ -38,6 +38,7 @@ DEFAULT_GENRES = [
 ]
 DEFAULT_MARKET = os.environ.get("SPOTIFY_MARKET", "NZ")
 SPOTIFY_TIMEOUT = float(os.environ.get("SPOTIFY_TIMEOUT", "8"))
+APP_TOKEN = {"access_token": "", "expires_at": 0}
 
 
 class SpotifyError(RuntimeError):
@@ -117,6 +118,33 @@ def _token_request(data):
     return response.json()
 
 
+def app_token():
+    if APP_TOKEN.get("access_token") and APP_TOKEN.get("expires_at", 0) > int(time.time()):
+        return APP_TOKEN["access_token"]
+    if not _client_id() or not _client_secret():
+        return current_token()
+
+    try:
+        response = requests.post(
+            SPOTIFY_TOKEN_URL,
+            data={"grant_type": "client_credentials"},
+            auth=(_client_id(), _client_secret()),
+            timeout=SPOTIFY_TIMEOUT,
+        )
+    except RequestException as exc:
+        raise SpotifyError("Spotify token service did not respond quickly enough", 504, {"error": str(exc)})
+
+    payload = response.json() if response.content else {}
+    if response.status_code >= 400:
+        if response.status_code == 429:
+            payload["retry_after"] = response.headers.get("Retry-After", "")
+        raise SpotifyError("Spotify app token request failed", response.status_code, payload)
+
+    APP_TOKEN["access_token"] = payload["access_token"]
+    APP_TOKEN["expires_at"] = int(time.time()) + int(payload.get("expires_in", 3600)) - 60
+    return APP_TOKEN["access_token"]
+
+
 def save_token(token):
     session["spotify_token"] = {
         "access_token": token["access_token"],
@@ -157,8 +185,16 @@ def refresh_token(token):
 
 
 def api_request(method, path, **kwargs):
+    return spotify_request(method, path, current_token(), **kwargs)
+
+
+def read_api_request(method, path, **kwargs):
+    return spotify_request(method, path, app_token(), **kwargs)
+
+
+def spotify_request(method, path, token, **kwargs):
     headers = kwargs.pop("headers", {})
-    headers["Authorization"] = f"Bearer {current_token()}"
+    headers["Authorization"] = f"Bearer {token}"
     headers.setdefault("Content-Type", "application/json")
 
     try:
@@ -197,7 +233,7 @@ def clamp_total_limit(limit):
 
 
 def search_page(query, item_type="track", limit=10, offset=0):
-    return api_request(
+    return read_api_request(
         "GET",
         "/search",
         params={
@@ -249,7 +285,7 @@ def best_artist_match(name):
 
 
 def artist_top_tracks(artist_id):
-    payload = api_request("GET", f"/artists/{artist_id}/top-tracks", params={"market": DEFAULT_MARKET})
+    payload = read_api_request("GET", f"/artists/{artist_id}/top-tracks", params={"market": DEFAULT_MARKET})
     return payload.get("tracks") or []
 
 
