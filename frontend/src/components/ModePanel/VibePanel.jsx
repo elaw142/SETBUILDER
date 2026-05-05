@@ -8,6 +8,16 @@ const loadingSteps = [
   "Waiting for Spotify...",
 ];
 
+function formatRetry(seconds) {
+  const value = Number(seconds);
+  if (!Number.isFinite(value) || value <= 0) return "";
+  if (value < 90) return `${Math.round(value)} seconds`;
+  const minutes = Math.round(value / 60);
+  if (minutes < 90) return `${minutes} minutes`;
+  const hours = Math.round(minutes / 60);
+  return `${hours} hours`;
+}
+
 export default function VibePanel({ spotify, workspace }) {
   const [prompt, setPrompt] = useState("");
   const [loadingStep, setLoadingStep] = useState(0);
@@ -38,7 +48,8 @@ export default function VibePanel({ spotify, workspace }) {
       const payload = await waitForJob(started.id);
       workspace.setResults((payload.tracks?.items || []).map(normalizeTrack));
       if (payload.rateLimited) {
-        const retryText = payload.retryAfter ? ` Spotify says to wait about ${payload.retryAfter} seconds before trying again.` : " Spotify is cooling this app down for a moment.";
+        const waitTime = formatRetry(payload.retryAfter);
+        const retryText = waitTime ? ` Spotify says to wait about ${waitTime} before trying again.` : " Spotify is cooling this app down for a moment.";
         workspace.fail(`Spotify rate limited the search.${retryText}`);
         return;
       }

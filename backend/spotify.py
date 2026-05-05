@@ -39,6 +39,7 @@ DEFAULT_GENRES = [
 DEFAULT_MARKET = os.environ.get("SPOTIFY_MARKET", "NZ")
 SPOTIFY_TIMEOUT = float(os.environ.get("SPOTIFY_TIMEOUT", "8"))
 APP_TOKEN = {"access_token": "", "expires_at": 0}
+READ_COOLDOWN = {"until": 0, "retry_after": ""}
 
 
 class SpotifyError(RuntimeError):
@@ -189,10 +190,20 @@ def api_request(method, path, **kwargs):
 
 
 def read_api_request(method, path, **kwargs):
-    return spotify_request(method, path, app_token(), **kwargs)
+    now = int(time.time())
+    if READ_COOLDOWN.get("until", 0) > now:
+        raise SpotifyError(
+            "Spotify discovery is cooling down",
+            429,
+            {
+                "error": "Spotify is rate limiting discovery searches.",
+                "retry_after": str(max(1, READ_COOLDOWN["until"] - now)),
+            },
+        )
+    return spotify_request(method, path, app_token(), is_read=True, **kwargs)
 
 
-def spotify_request(method, path, token, **kwargs):
+def spotify_request(method, path, token, is_read=False, **kwargs):
     headers = kwargs.pop("headers", {})
     headers["Authorization"] = f"Bearer {token}"
     headers.setdefault("Content-Type", "application/json")
@@ -215,7 +226,11 @@ def spotify_request(method, path, token, **kwargs):
         payload = {"error": response.text}
     if response.status_code >= 400:
         if response.status_code == 429:
-            payload["retry_after"] = response.headers.get("Retry-After", "")
+            retry_after = response.headers.get("Retry-After", "")
+            payload["retry_after"] = retry_after
+            if is_read and retry_after.isdigit():
+                READ_COOLDOWN["retry_after"] = retry_after
+                READ_COOLDOWN["until"] = int(time.time()) + int(retry_after)
         raise SpotifyError("Spotify API request failed", response.status_code, payload)
     return payload
 
