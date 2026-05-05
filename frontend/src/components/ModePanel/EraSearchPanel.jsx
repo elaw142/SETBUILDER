@@ -1,6 +1,5 @@
 import { Radio } from "lucide-react";
 import { normalizeTrack } from "../../hooks/useSegments.js";
-import SliderField from "./SliderField.jsx";
 
 export default function EraSearchPanel({ segment, spotify, segmentsApi }) {
   const params = segment.params;
@@ -9,8 +8,12 @@ export default function EraSearchPanel({ segment, spotify, segmentsApi }) {
   const run = async () => {
     segmentsApi.setStatus(segment.id, "loading");
     try {
-      const query = `genre:${params.genre} year:${params.yearStart}-${params.yearEnd}`;
-      const payload = await spotify.searchTracks(query, params.limit);
+      const payload = await spotify.eraSearch({
+        genre: params.genre,
+        yearStart: params.yearStart,
+        yearEnd: params.yearEnd,
+        limit: params.limit,
+      });
       const tracks = (payload.tracks?.items || [])
         .map(normalizeTrack)
         .sort((a, b) => b.popularity - a.popularity);
@@ -36,14 +39,12 @@ export default function EraSearchPanel({ segment, spotify, segmentsApi }) {
           <input type="number" value={params.yearEnd} onChange={(event) => update("yearEnd", Number(event.target.value))} />
         </label>
       </div>
-      <SliderField label="Energy Sort Bias" value={params.energy} onChange={(value) => update("energy", value)} />
-      <SliderField label="Valence Sort Bias" value={params.valence} onChange={(value) => update("valence", value)} />
       <label className="control-label">
         Results
-        <input type="number" min="1" max="10" value={params.limit} onChange={(event) => update("limit", Number(event.target.value))} />
+        <input type="number" min="1" max="50" value={params.limit} onChange={(event) => update("limit", Number(event.target.value))} />
       </label>
       <button className="action-button" onClick={run}>
-        <Radio size={22} strokeWidth={3} /> Search Era
+        <Radio size={22} strokeWidth={3} /> Search / Refresh Era
       </button>
     </div>
   );

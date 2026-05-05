@@ -23,7 +23,7 @@ export default function ManualSearchPanel({ segment, spotify, segmentsApi }) {
       </label>
       <label className="control-label">
         Results
-        <input type="number" min="1" max="10" value={params.limit} onChange={(event) => update("limit", Number(event.target.value))} />
+        <input type="number" min="1" max="50" value={params.limit} onChange={(event) => update("limit", Number(event.target.value))} />
       </label>
       <button className="action-button" onClick={run}>
         <Search size={22} strokeWidth={3} /> Search Tracks

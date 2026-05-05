@@ -10,8 +10,10 @@ from spotify import (
     create_playlist,
     exchange_code,
     genres,
+    era_search,
     me,
     recommendations,
+    search_artists,
     search_tracks,
 )
 
@@ -60,11 +62,29 @@ def create_app():
         query = request.args.get("q", "").strip()
         if not query:
             return jsonify({"tracks": {"items": []}})
-        return jsonify(search_tracks(query, request.args.get("limit", 20)))
+        return jsonify(
+            search_tracks(
+                query,
+                request.args.get("limit", 20),
+                request.args.get("offset", 0),
+                request.args.get("variance", "false").lower() == "true",
+            )
+        )
+
+    @app.get("/api/artists/search")
+    def artist_search():
+        query = request.args.get("q", "").strip()
+        if not query:
+            return jsonify({"artists": {"items": []}})
+        return jsonify(search_artists(query, request.args.get("limit", 10)))
 
     @app.get("/api/recommendations")
     def get_recommendations():
         return jsonify(recommendations(request.args.to_dict()))
+
+    @app.get("/api/era-search")
+    def get_era_search():
+        return jsonify(era_search(request.args.to_dict()))
 
     @app.get("/api/genres")
     def get_genres():

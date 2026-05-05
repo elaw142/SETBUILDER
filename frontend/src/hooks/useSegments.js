@@ -1,13 +1,13 @@
 import { useMemo, useState } from "react";
 
 const starterParams = {
-  seedArtists: "",
+  seedArtists: [],
   seedGenres: [],
   energy: [0.35, 0.9],
   valence: [0.25, 0.85],
   danceability: [0.35, 0.95],
   tempo: [80, 170],
-  limit: 10,
+  limit: 30,
   genre: "pop",
   yearStart: 2010,
   yearEnd: 2019,

@@ -59,7 +59,10 @@ export function useSpotify() {
       await api("/api/auth/logout", { method: "POST" });
       setUser(null);
     },
-    searchTracks: (query, limit = 20) => api(`/api/search?q=${encodeURIComponent(query)}&limit=${limit}`),
+    searchTracks: (query, limit = 30, variance = false) =>
+      api(`/api/search?q=${encodeURIComponent(query)}&limit=${limit}&variance=${variance}`),
+    searchArtists: (query, limit = 10) => api(`/api/artists/search?q=${encodeURIComponent(query)}&limit=${limit}`),
+    eraSearch: (params) => api(`/api/era-search?${new URLSearchParams(params).toString()}`),
     recommendations: (params) => api(`/api/recommendations?${new URLSearchParams(params).toString()}`),
     createPlaylist: (payload) =>
       api("/api/playlist/create", {

@@ -1,6 +1,7 @@
 import base64
 import hashlib
 import os
+import random
 import secrets
 import time
 from urllib.parse import urlencode
@@ -177,29 +178,110 @@ def me():
     return api_request("GET", "/me")
 
 
-def search_tracks(query, limit=20):
+def clamp_page_limit(limit):
+    return min(max(int(limit), 1), 10)
+
+
+def clamp_total_limit(limit):
+    return min(max(int(limit), 1), 50)
+
+
+def search_page(query, item_type="track", limit=10, offset=0):
     return api_request(
         "GET",
         "/search",
-        params={"q": query, "type": "track", "limit": clamp_limit(limit)},
+        params={"q": query, "type": item_type, "limit": clamp_page_limit(limit), "offset": max(int(offset), 0)},
     )
 
 
-def clamp_limit(limit):
-    return min(max(int(limit), 1), 10)
+def search_artists(query, limit=10):
+    return search_page(query, "artist", limit)
+
+
+def unique_tracks(items):
+    seen = set()
+    tracks = []
+    for track in items:
+        track_id = track.get("id")
+        if not track_id or track_id in seen:
+            continue
+        seen.add(track_id)
+        tracks.append(track)
+    return tracks
+
+
+def search_tracks(query, limit=20, offset=0, variance=False):
+    total_limit = clamp_total_limit(limit)
+    page_offsets = list(range(max(int(offset), 0), max(int(offset), 0) + total_limit + 30, 10))
+    if variance:
+        base_offsets = list(range(0, 200, 10))
+        random.shuffle(base_offsets)
+        page_offsets = base_offsets[: max(6, (total_limit // 10) + 3)]
+
+    items = []
+    last_payload = None
+    for page_offset in page_offsets:
+        payload = search_page(query, "track", 10, page_offset)
+        last_payload = payload
+        page_items = payload.get("tracks", {}).get("items") or []
+        items.extend(page_items)
+        items = unique_tracks(items)
+        if len(items) >= total_limit:
+            break
+        if not payload.get("tracks", {}).get("next"):
+            break
+
+    payload = last_payload or {"tracks": {"items": []}}
+    payload["tracks"]["items"] = items[:total_limit]
+    payload["tracks"]["limit"] = total_limit
+    payload["tracks"]["offset"] = int(offset or 0)
+    return payload
+
+
+def search_track_variants(queries, limit=20):
+    total_limit = clamp_total_limit(limit)
+    items = []
+    usable_queries = [query for query in queries if query.strip()]
+    random.shuffle(usable_queries)
+    for query in usable_queries:
+        payload = search_tracks(query, max(10, total_limit), variance=True)
+        items.extend(payload.get("tracks", {}).get("items") or [])
+        items = unique_tracks(items)
+        if len(items) >= total_limit:
+            break
+    return {"tracks": {"items": items[:total_limit], "limit": total_limit, "offset": 0}}
 
 
 def recommendations(params):
     genres = [genre for genre in (params.get("seed_genres") or "").split(",") if genre]
-    artists = [artist for artist in (params.get("seed_artists") or "").split(",") if artist]
-    query_parts = []
-    if genres:
-        query_parts.append(f"genre:{genres[0]}")
-    if artists:
-        query_parts.append(artists[0])
-    if not query_parts:
-        query_parts.append("tag:new")
-    return search_tracks(" ".join(query_parts), params.get("limit", 10))
+    artist_names = [artist for artist in (params.get("seed_artist_names") or "").split(",") if artist]
+    queries = []
+    if genres and artist_names:
+        for genre in genres[:3]:
+            for artist in artist_names[:3]:
+                queries.append(f"genre:{genre} {artist}")
+    elif genres:
+        queries.extend([f"genre:{genre}" for genre in genres[:3]])
+    elif artist_names:
+        queries.extend(artist_names[:5])
+    else:
+        queries.extend(["tag:new", "tag:hipster", "year:2020-2026"])
+    return search_track_variants(queries, params.get("limit", 20))
+
+
+def era_search(params):
+    genre = (params.get("genre") or "").strip()
+    start = int(params.get("yearStart") or params.get("year_start") or 2010)
+    end = int(params.get("yearEnd") or params.get("year_end") or start)
+    if start > end:
+        start, end = end, start
+
+    years = list(range(start, end + 1))
+    random.shuffle(years)
+    decade_query = f"genre:{genre} year:{start}-{end}" if genre else f"year:{start}-{end}"
+    queries = [decade_query]
+    queries.extend(f"genre:{genre} year:{year}" if genre else f"year:{year}" for year in years[:10])
+    return search_track_variants(queries, params.get("limit", 30))
 
 
 def genres():

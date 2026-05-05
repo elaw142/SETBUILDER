@@ -199,6 +199,36 @@ select:focus {
   background: #ff2d78;
 }
 
+.chip-row,
+.artist-results {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.artist-chip,
+.artist-results button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 2px solid #111;
+  background: #ccff00;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.artist-results button {
+  background: #f2efe6;
+}
+
+.artist-chip:hover,
+.artist-results button:hover {
+  background: #111;
+  color: #f2efe6;
+}
+
 .status-line,
 .empty-state,
 .status-error {
