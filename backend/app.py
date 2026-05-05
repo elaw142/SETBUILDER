@@ -32,7 +32,7 @@ def create_app():
 
     @app.get("/api/health")
     def health():
-        return {"ok": True, "app": "tracksieve"}
+        return {"ok": True, "app": "sieve"}
 
     @app.get("/api/auth/login")
     def login():
