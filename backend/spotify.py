@@ -260,6 +260,16 @@ def artist_seed_tracks(artist_id=None, artist_name="", limit=12, use_top_tracks=
     return payload.get("tracks", {}).get("items") or []
 
 
+def safe_artist_search_tracks(artist_name, limit=5):
+    try:
+        payload = search_page(f'artist:"{artist_name}"', "track", min(limit, 10), 0)
+        return payload.get("tracks", {}).get("items") or []
+    except SpotifyError as exc:
+        if exc.status_code == 429:
+            return []
+        raise
+
+
 def unique_tracks(items, min_popularity=0):
     seen = set()
     tracks = []
@@ -483,13 +493,11 @@ def vibe_search(prompt, limit=30):
     if len(prompt_artists) >= 2:
         items = []
         matched_artists = []
-        per_artist_limit = max(3, min(8, (total_limit // max(len(prompt_artists), 1)) + 2))
-        for artist_name in prompt_artists[:10]:
-            artist = best_artist_match(artist_name)
-            if not artist:
-                continue
-            matched_artists.append({"id": artist.get("id"), "name": artist.get("name")})
-            tracks = artist_seed_tracks(None, artist.get("name", artist_name), per_artist_limit, use_top_tracks=False)
+        artist_limit = min(len(prompt_artists), 6)
+        per_artist_limit = max(2, min(5, (total_limit // max(artist_limit, 1)) + 1))
+        for artist_name in prompt_artists[:artist_limit]:
+            matched_artists.append({"id": "", "name": artist_name})
+            tracks = safe_artist_search_tracks(artist_name, per_artist_limit)
             random.shuffle(tracks)
             items.extend(tracks[:per_artist_limit])
 

@@ -33,6 +33,10 @@ def create_app():
 
     @app.errorhandler(SpotifyError)
     def handle_spotify_error(error):
+        if error.status_code == 429:
+            payload = dict(error.payload)
+            payload.setdefault("error", "Spotify is rate limiting searches. Wait a minute, then try again.")
+            return jsonify(payload), 429
         return jsonify(error.payload), error.status_code
 
     @app.get("/api/health")

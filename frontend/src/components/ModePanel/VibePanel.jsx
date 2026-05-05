@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { normalizeTrack } from "../../hooks/usePlaylistWorkspace.js";
 
 const loadingSteps = [
-  "Waking local AI...",
   "Reading the prompt...",
   "Checking Spotify candidates...",
   "Balancing the results...",
@@ -72,7 +71,7 @@ export default function VibePanel({ spotify, workspace }) {
             <span />
           </div>
           <p className="font-display text-3xl">{loadingSteps[loadingStep]}</p>
-          <p>Local AI can take a moment when the model is waking up.</p>
+          <p>Spotify can throttle bursts of searches, so this now asks for a smaller first pass.</p>
         </div>
       )}
       {lastSearch && lastSearch.count > 0 && (
