@@ -1,8 +1,8 @@
-# TRACKSIEVE
+# SIEVE
 
 A self-hosted Spotify playlist duplicate removal desk.
 
-TRACKSIEVE scans a Spotify playlist, groups duplicate tracks, previews what will be kept or removed, and removes the later copies only after confirmation.
+SIEVE scans a Spotify playlist, groups duplicate tracks, previews what will be kept or removed, and removes the later copies only after confirmation.
 
 ## Duplicate Modes
 
@@ -42,9 +42,9 @@ docker compose up --build
 
 ## Production
 
-Target domain: `https://tracksieve.emlw.dev`
+Target domain: `https://sieve.emlw.dev`
 
-On the server, the app lives at `/opt/tracksieve`. Caddy runs in Docker on the shared `web` network and reverse proxies `tracksieve.emlw.dev` to `tracksieve-frontend:80`; see `deploy/caddy.tracksieve.conf`.
+On the server, the app lives at `/opt/sieve`. Caddy runs in Docker on the shared `web` network and reverse proxies `sieve.emlw.dev` to `sieve-frontend:80`; see `deploy/caddy.sieve.conf`.
 
 GitHub Actions deploys on pushes to `main` over SSH. Required repository secrets:
 
@@ -53,4 +53,4 @@ GitHub Actions deploys on pushes to `main` over SSH. Required repository secrets
 - `SSH_PORT`
 - `SSH_PRIVATE_KEY`
 
-The server also needs `/opt/tracksieve/.env` populated with Spotify credentials. The Spotify developer app must include `https://tracksieve.emlw.dev/api/auth/callback` as an allowed redirect URI.
+The server also needs `/opt/sieve/.env` populated with Spotify credentials. The Spotify developer app must include `https://sieve.emlw.dev/api/auth/callback` as an allowed redirect URI.
