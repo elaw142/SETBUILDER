@@ -207,6 +207,40 @@ def search_artists(query, limit=10):
     return search_page(query, "artist", limit)
 
 
+def compact_name(value):
+    return re.sub(r"[^a-z0-9]+", "", (value or "").lower())
+
+
+def parse_prompt_artists(prompt):
+    if "," not in prompt:
+        return []
+
+    candidates = []
+    for item in re.split(r",|\n|;|/|\betc\b", prompt, flags=re.IGNORECASE):
+        cleaned = re.sub(r"\([^)]*\)", "", item).strip(" .:-")
+        if not cleaned or len(cleaned) > 40:
+            continue
+        if len(cleaned.split()) > 4:
+            continue
+        if compact_name(cleaned) in {"and", "similar", "artists", "music", "songs"}:
+            continue
+        candidates.append(cleaned)
+    return candidates[:12]
+
+
+def best_artist_match(name):
+    payload = search_artists(name, 5)
+    artists = payload.get("artists", {}).get("items") or []
+    if not artists:
+        return None
+
+    target = compact_name(name)
+    exact = [artist for artist in artists if compact_name(artist.get("name")) == target]
+    if exact:
+        return exact[0]
+    return artists[0]
+
+
 def artist_top_tracks(artist_id):
     payload = api_request("GET", f"/artists/{artist_id}/top-tracks", params={"market": DEFAULT_MARKET})
     return payload.get("tracks") or []
@@ -269,6 +303,29 @@ def search_track_variants(queries, limit=20, variance=True, shuffle_queries=True
     if shuffle_results:
         random.shuffle(items)
     return {"tracks": {"items": items[:total_limit], "limit": total_limit, "offset": 0}}
+
+
+def balanced_search_variants(queries, limit=20, min_popularity=0):
+    total_limit = clamp_total_limit(limit)
+    items = []
+    usable_queries = [query for query in queries if query.strip()]
+    for query in usable_queries:
+        payload = search_tracks(query, min(10, total_limit), variance=True, min_popularity=min_popularity)
+        query_items = payload.get("tracks", {}).get("items") or []
+        random.shuffle(query_items)
+        items.extend(query_items[: max(2, total_limit // max(len(usable_queries), 1))])
+        items = unique_tracks(items, min_popularity)
+
+    if len(items) < total_limit:
+        for query in usable_queries:
+            payload = search_tracks(query, total_limit, variance=True, min_popularity=min_popularity)
+            items.extend(payload.get("tracks", {}).get("items") or [])
+            items = unique_tracks(items, min_popularity)
+            if len(items) >= total_limit:
+                break
+
+    random.shuffle(items)
+    return items[:total_limit]
 
 
 def adjacent_swap_variants(word):
@@ -381,9 +438,10 @@ def vibe_plan(prompt):
                 {
                     "role": "system",
                     "content": (
-                        "You convert loose playlist vibes into practical Spotify search plans. "
-                        "Return only JSON with keys: genre, yearStart, yearEnd, seedGenres, manualQuery, "
+                        "You convert loose playlist vibes into practical Spotify discovery inputs. "
+                        "Return only JSON with keys: genre, yearStart, yearEnd, seedArtists, seedGenres, manualQuery, "
                         "queryVariants, notes. queryVariants must be usable Spotify track search strings. "
+                        "If the user gives artist names, preserve each artist and correct obvious misspellings. "
                         "Prefer widely available English-language music unless asked otherwise."
                     ),
                 },
@@ -402,6 +460,57 @@ def vibe_plan(prompt):
     except json.JSONDecodeError as exc:
         raise SpotifyError("AI returned an invalid plan", 502, {"error": str(exc), "raw": text})
     return {"plan": plan}
+
+
+def vibe_search(prompt, limit=30):
+    total_limit = clamp_total_limit(limit)
+    prompt_artists = parse_prompt_artists(prompt)
+    plan = {"seedArtists": prompt_artists, "queryVariants": forgiving_queries(prompt)[:6]} if len(prompt_artists) >= 2 else vibe_plan(prompt).get("plan") or {}
+    plan_artists = plan.get("seedArtists") if isinstance(plan.get("seedArtists"), list) else []
+    artist_names = []
+    for name in [*prompt_artists, *plan_artists]:
+        if isinstance(name, str) and compact_name(name) and compact_name(name) not in [compact_name(item) for item in artist_names]:
+            artist_names.append(name)
+
+    items = []
+    matched_artists = []
+    for artist_name in artist_names[:10]:
+        artist = best_artist_match(artist_name)
+        if not artist:
+            continue
+        matched_artists.append({"id": artist.get("id"), "name": artist.get("name")})
+        top_tracks = artist_top_tracks(artist["id"])
+        random.shuffle(top_tracks)
+        items.extend(top_tracks[:4])
+
+    query_variants = plan.get("queryVariants") if isinstance(plan.get("queryVariants"), list) else []
+    manual_query = plan.get("manualQuery") if isinstance(plan.get("manualQuery"), str) else ""
+    seed_genres = plan.get("seedGenres") if isinstance(plan.get("seedGenres"), list) else []
+    genre = plan.get("genre") if isinstance(plan.get("genre"), str) else ""
+
+    queries = []
+    queries.extend(query for query in query_variants if isinstance(query, str))
+    if manual_query:
+        queries.append(manual_query)
+    for artist in matched_artists[:6]:
+        queries.append(f'artist:"{artist["name"]}"')
+        for seed_genre in seed_genres[:2]:
+            if isinstance(seed_genre, str):
+                queries.append(f'{artist["name"]} {seed_genre}')
+    if genre:
+        queries.append(genre)
+    queries.extend(forgiving_queries(prompt)[:4])
+
+    if queries:
+        items.extend(balanced_search_variants(queries, max(total_limit, 30), min_popularity=8))
+
+    tracks = unique_tracks(items)
+    random.shuffle(tracks)
+    return {
+        "plan": plan,
+        "matchedArtists": matched_artists,
+        "tracks": {"items": tracks[:total_limit], "limit": total_limit, "offset": 0},
+    }
 
 
 def create_playlist(user_id, name, description, track_uris):

@@ -31,6 +31,7 @@ export function usePlaylistWorkspace() {
   const [pool, setPool] = useState([]);
   const [playlist, setPlaylist] = useState([]);
   const [status, setStatus] = useState("idle");
+  const [loadingMessage, setLoadingMessage] = useState("");
   const [error, setError] = useState("");
   const [previewTrack, setPreviewTrack] = useState(null);
 
@@ -39,11 +40,13 @@ export function usePlaylistWorkspace() {
   const setResults = (tracks) => {
     setPool(tracks);
     setStatus("idle");
+    setLoadingMessage("");
     setError("");
   };
 
   const fail = (message) => {
     setStatus("error");
+    setLoadingMessage("");
     setError(message);
   };
 
@@ -70,6 +73,8 @@ export function usePlaylistWorkspace() {
     selectedIds,
     status,
     setStatus,
+    loadingMessage,
+    setLoadingMessage,
     error,
     setResults,
     fail,

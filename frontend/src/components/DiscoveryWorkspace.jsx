@@ -42,7 +42,7 @@ export default function DiscoveryWorkspace({ genres, spotify, workspace }) {
           <span className="text-xs uppercase text-muted">{workspace.pool.length} found</span>
         </div>
         {workspace.error && <p className="status-error">{workspace.error}</p>}
-        {workspace.status === "loading" && <p className="status-line">Tuning antenna...</p>}
+        {workspace.status === "loading" && <p className="status-line">{workspace.loadingMessage || "Tuning antenna..."}</p>}
         <div className="track-list">
           {workspace.pool.map((track) => (
             <TrackRow

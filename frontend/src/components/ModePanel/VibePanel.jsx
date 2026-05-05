@@ -1,38 +1,46 @@
-import { Sparkles, Wand2 } from "lucide-react";
-import { useState } from "react";
+import { Sparkles } from "lucide-react";
+import { useEffect, useState } from "react";
 import { normalizeTrack } from "../../hooks/usePlaylistWorkspace.js";
+
+const loadingSteps = [
+  "Waking local AI...",
+  "Reading the prompt...",
+  "Checking Spotify candidates...",
+  "Balancing the results...",
+];
 
 export default function VibePanel({ spotify, workspace }) {
   const [prompt, setPrompt] = useState("");
-  const [plan, setPlan] = useState(null);
+  const [loadingStep, setLoadingStep] = useState(0);
+  const [lastSearch, setLastSearch] = useState(null);
+  const isVibeLoading = workspace.status === "loading" && workspace.mode === "vibe";
 
-  const applyPlan = (nextPlan) => {
-    if (nextPlan.genre) workspace.updateParam("genre", nextPlan.genre);
-    if (nextPlan.yearStart) workspace.updateParam("yearStart", Number(nextPlan.yearStart));
-    if (nextPlan.yearEnd) workspace.updateParam("yearEnd", Number(nextPlan.yearEnd));
-    if (Array.isArray(nextPlan.seedGenres)) workspace.updateParam("seedGenres", nextPlan.seedGenres.slice(0, 3));
-    if (nextPlan.manualQuery) workspace.updateParam("query", nextPlan.manualQuery);
-  };
+  useEffect(() => {
+    if (!isVibeLoading) return undefined;
+    setLoadingStep(0);
+    const timer = window.setInterval(() => {
+      setLoadingStep((current) => Math.min(current + 1, loadingSteps.length - 1));
+    }, 2400);
+    return () => window.clearInterval(timer);
+  }, [isVibeLoading]);
 
-  const planVibe = async () => {
-    workspace.setStatus("loading");
-    try {
-      const payload = await spotify.vibePlan(prompt);
-      setPlan(payload.plan);
-      applyPlan(payload.plan);
-      workspace.setStatus("idle");
-    } catch (err) {
-      workspace.fail(err.message);
+  useEffect(() => {
+    if (isVibeLoading) {
+      workspace.setLoadingMessage(loadingSteps[loadingStep]);
     }
-  };
+  }, [isVibeLoading, loadingStep, workspace.setLoadingMessage]);
 
-  const searchPlan = async () => {
-    const variants = plan?.queryVariants || [];
-    const query = variants[0] || workspace.params.query || prompt;
+  const runSearch = async () => {
     workspace.setStatus("loading");
+    workspace.setLoadingMessage(loadingSteps[0]);
+    setLastSearch(null);
     try {
-      const payload = await spotify.searchTracks(query, workspace.params.limit, true);
+      const payload = await spotify.vibeSearch(prompt, workspace.params.limit);
       workspace.setResults((payload.tracks?.items || []).map(normalizeTrack));
+      setLastSearch({
+        count: payload.tracks?.items?.length || 0,
+        artists: payload.matchedArtists?.map((artist) => artist.name).slice(0, 6) || [],
+      });
     } catch (err) {
       workspace.fail(err.message);
     }
@@ -46,26 +54,31 @@ export default function VibePanel({ spotify, workspace }) {
           value={prompt}
           onChange={(event) => setPrompt(event.target.value)}
           onKeyDown={(event) => {
-            if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) planVibe();
+            if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) runSearch();
           }}
-          placeholder="glossy 2012 tumblr pop, sad dancefloor, not too obvious"
+          placeholder="ericdoa, glaive, juno, kmoe, brakence, quadeca"
         />
       </label>
       <label className="control-label">
         Results
         <input type="number" min="1" max="50" value={workspace.params.limit} onChange={(event) => workspace.updateParam("limit", Number(event.target.value))} />
       </label>
-      <button className="action-button" onClick={planVibe} disabled={!prompt.trim()}>
-        <Wand2 size={22} strokeWidth={3} /> Plan Vibe
+      <button className="action-button" onClick={runSearch} disabled={!prompt.trim() || isVibeLoading}>
+        <Sparkles size={22} strokeWidth={3} /> {isVibeLoading ? "Searching..." : "Find Songs"}
       </button>
-      {plan && (
-        <div className="plan-card">
-          <p className="font-display text-3xl">AI Search Plan</p>
-          <p>{plan.notes || "Plan ready."}</p>
-          <button className="action-button mt-3" onClick={searchPlan}>
-            <Sparkles size={22} strokeWidth={3} /> Search Plan
-          </button>
+      {isVibeLoading && (
+        <div className="loading-card">
+          <div className="loading-bar">
+            <span />
+          </div>
+          <p className="font-display text-3xl">{loadingSteps[loadingStep]}</p>
+          <p>Local AI can take a moment when the model is waking up.</p>
         </div>
+      )}
+      {lastSearch && lastSearch.count > 0 && (
+        <p className="status-line">
+          Found {lastSearch.count} tracks{lastSearch.artists.length ? ` using ${lastSearch.artists.join(", ")}` : ""}.
+        </p>
       )}
     </div>
   );
