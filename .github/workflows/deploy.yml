@@ -65,4 +65,7 @@ jobs:
               exit 1
             fi
 
+            docker compose down --remove-orphans || true
+            docker rm -f sieve-backend sieve-frontend 2>/dev/null || true
             docker compose up --build -d
+            docker compose ps
