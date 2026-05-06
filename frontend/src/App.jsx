@@ -63,7 +63,7 @@ export default function App() {
       return;
     }
     setStatus("loading");
-    setMessage("Scanning playlist");
+    setMessage(selectedPlaylist?.tracksTotal > 1000 ? `Scanning ${selectedPlaylist.tracksTotal} tracks. Large playlists can take a few minutes.` : "Scanning playlist");
     setAnalysis(null);
     try {
       const payload = await spotify.duplicates(playlistId, mode);
