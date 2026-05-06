@@ -1,5 +1,6 @@
 import base64
 import hashlib
+import logging
 import os
 import re
 import secrets
@@ -17,6 +18,7 @@ SPOTIFY_TOKEN_URL = "https://accounts.spotify.com/api/token"
 SPOTIFY_API_BASE = "https://api.spotify.com/v1"
 SCOPES = "playlist-read-private playlist-read-collaborative playlist-modify-public playlist-modify-private user-read-private"
 SPOTIFY_TIMEOUT = float(os.environ.get("SPOTIFY_TIMEOUT", "12"))
+LOGGER = logging.getLogger(__name__)
 
 
 class SpotifyError(RuntimeError):
@@ -62,6 +64,7 @@ def build_authorize_url():
         "state": state,
         "code_challenge_method": "S256",
         "code_challenge": challenge,
+        "show_dialog": "true",
     }
     return f"{SPOTIFY_AUTH_URL}?{urlencode(params)}"
 
@@ -161,6 +164,7 @@ def api_request(method, path, **kwargs):
     if response.status_code >= 400:
         if response.status_code == 429:
             payload["retry_after"] = response.headers.get("Retry-After", "")
+        LOGGER.warning("Spotify API %s %s failed with %s: %s", method, path, response.status_code, payload)
         raise SpotifyError("Spotify API request failed", response.status_code, payload)
     return payload
 
@@ -178,7 +182,9 @@ def list_playlists():
         if not payload.get("next"):
             break
         offset += 50
-    return {"playlists": [compact_playlist(item) for item in items]}
+    playlists = [compact_playlist(item) for item in items]
+    session["playlist_cache"] = {playlist["id"]: playlist for playlist in playlists if playlist.get("id")}
+    return {"playlists": playlists}
 
 
 def compact_playlist(playlist):
@@ -193,10 +199,6 @@ def compact_playlist(playlist):
         "tracksTotal": (playlist.get("tracks") or {}).get("total", 0),
         "public": playlist.get("public"),
     }
-
-
-def playlist_snapshot(playlist_id):
-    return api_request("GET", f"/playlists/{playlist_id}", params={"fields": "id,name,snapshot_id,tracks(total)"})
 
 
 def playlist_items(playlist_id):
@@ -258,7 +260,7 @@ def duplicate_key(track, mode):
 
 def analyse_duplicates(playlist_id, mode="exact"):
     mode = "soft" if mode == "soft" else "exact"
-    snapshot = playlist_snapshot(playlist_id)
+    playlist_meta = session.get("playlist_cache", {}).get(playlist_id, {})
     groups = defaultdict(list)
     skipped = 0
 
@@ -291,10 +293,9 @@ def analyse_duplicates(playlist_id, mode="exact"):
     duplicate_groups.sort(key=lambda group: group["keep"]["position"])
     return {
         "playlist": {
-            "id": snapshot.get("id"),
-            "name": snapshot.get("name"),
-            "snapshotId": snapshot.get("snapshot_id"),
-            "tracksTotal": (snapshot.get("tracks") or {}).get("total", 0),
+            "id": playlist_id,
+            "name": playlist_meta.get("name") or "Selected playlist",
+            "tracksTotal": playlist_meta.get("tracksTotal", 0),
         },
         "mode": mode,
         "groups": duplicate_groups,
@@ -312,10 +313,9 @@ def remove_duplicates(playlist_id, mode="exact"):
             removals_by_uri[occurrence["track"]["uri"]].append(occurrence["position"])
 
     removals = [{"uri": uri, "positions": sorted(positions)} for uri, positions in removals_by_uri.items()]
-    snapshot_id = analysis["playlist"].get("snapshotId")
     removed_count = sum(len(item["positions"]) for item in removals)
 
-    next_snapshot = snapshot_id
+    next_snapshot = None
     for index in range(0, len(removals), 100):
         payload = {"tracks": removals[index : index + 100]}
         if next_snapshot:
