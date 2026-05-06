@@ -13,9 +13,19 @@ async function api(path, options = {}) {
   if (!response.ok) {
     const spotifyMessage = payload.error?.message || payload.error;
     const missingScopes = payload.sieve_scopes?.missing?.length ? ` Missing scopes: ${payload.sieve_scopes.missing.join(", ")}.` : "";
-    throw new Error(`${spotifyMessage || "Spotify request failed"}${missingScopes}`);
+    const retryAfter = payload.retry_after ? ` Spotify says to retry in about ${formatRetryAfter(payload.retry_after)}.` : "";
+    throw new Error(`${spotifyMessage || "Spotify request failed"}${retryAfter}${missingScopes}`);
   }
   return payload;
+}
+
+function formatRetryAfter(value) {
+  const seconds = Number(value);
+  if (!Number.isFinite(seconds) || seconds <= 0) return "a little while";
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.ceil((seconds % 3600) / 60);
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
 }
 
 export function useSpotify() {
@@ -54,10 +64,10 @@ export function useSpotify() {
     },
     playlists: () => api("/api/playlists"),
     duplicates: (playlistId, mode = "exact") => api(`/api/playlists/${playlistId}/duplicates?mode=${mode}`),
-    removeDuplicates: (playlistId, mode = "exact", keepPositions = {}) =>
+    removeDuplicates: (playlistId, mode = "exact", keepPositions = {}, removals = []) =>
       api(`/api/playlists/${playlistId}/remove-duplicates`, {
         method: "POST",
-        body: JSON.stringify({ mode, keepPositions }),
+        body: JSON.stringify({ mode, keepPositions, removals }),
       }),
   };
 }

@@ -370,7 +370,10 @@ def analyse_duplicates(playlist_id, mode="exact"):
     }
 
 
-def remove_duplicates(playlist_id, mode="exact", keep_positions=None):
+def remove_duplicates(playlist_id, mode="exact", keep_positions=None, removal_items=None):
+    if removal_items:
+        return remove_playlist_items(playlist_id, removal_items, mode)
+
     keep_positions = keep_positions or {}
     analysis = analyse_duplicates(playlist_id, mode)
     removals = []
@@ -385,11 +388,22 @@ def remove_duplicates(playlist_id, mode="exact", keep_positions=None):
             if occurrence["position"] != selected_position:
                 removals.append({"uri": occurrence["track"]["uri"]})
 
-    removed_count = len(removals)
+    result = remove_playlist_items(playlist_id, removals, analysis["mode"])
+    result["groupCount"] = analysis["groupCount"]
+    return result
 
+
+def remove_playlist_items(playlist_id, removals, mode="exact"):
+    sanitized_removals = []
+    for item in removals:
+        uri = item.get("uri") if isinstance(item, dict) else ""
+        if uri:
+            sanitized_removals.append({"uri": uri})
+
+    removed_count = len(sanitized_removals)
     next_snapshot = None
-    for index in range(0, len(removals), 100):
-        payload = {"items": removals[index : index + 100]}
+    for index in range(0, len(sanitized_removals), 100):
+        payload = {"items": sanitized_removals[index : index + 100]}
         if next_snapshot:
             payload["snapshot_id"] = next_snapshot
         result = api_request("DELETE", f"/playlists/{playlist_id}/items", json=payload)
@@ -397,7 +411,6 @@ def remove_duplicates(playlist_id, mode="exact", keep_positions=None):
 
     return {
         "removedCount": removed_count,
-        "groupCount": analysis["groupCount"],
         "snapshotId": next_snapshot,
-        "mode": analysis["mode"],
+        "mode": mode,
     }

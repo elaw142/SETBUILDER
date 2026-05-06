@@ -91,10 +91,11 @@ export default function App() {
     setStatus("loading");
     setMessage("Removing duplicate tracks");
     try {
-      const payload = await spotify.removeDuplicates(playlistId, mode, keepPositions);
+      const removals = buildRemovalItems(analysis, keepPositions);
+      const payload = await spotify.removeDuplicates(playlistId, mode, keepPositions, removals);
       setStatus("success");
-      setMessage(`Removed ${payload.removedCount} duplicates`);
-      await scan();
+      setMessage(`Removed ${payload.removedCount} duplicates. Scan again when you want a fresh report.`);
+      setAnalysis(null);
     } catch (err) {
       setStatus("error");
       setMessage(err.message);
@@ -245,6 +246,15 @@ export default function App() {
       )}
     </main>
   );
+}
+
+function buildRemovalItems(analysis, keepPositions) {
+  return (analysis?.groups || []).flatMap((group) => {
+    const selectedPosition = Number(keepPositions[group.key] ?? group.keep.position);
+    return [group.keep, ...group.remove]
+      .filter((occurrence) => occurrence.position !== selectedPosition)
+      .map((occurrence) => ({ uri: occurrence.track.uri }));
+  });
 }
 
 function DuplicateGroup({ group, keepPosition, onKeep, onPreview }) {
