@@ -1,18 +1,8 @@
-<<<<<<< HEAD
-
-# SIEVE
-
-A self-hosted Spotify playlist duplicate removal desk.
-
-# SIEVE scans a Spotify playlist, groups duplicate tracks, previews what will be kept or removed, and removes the later copies only after confirmation.
-
 # SIEVE
 
 A self-hosted Spotify playlist duplicate removal desk.
 
 SIEVE scans a Spotify playlist, groups duplicate tracks, previews what will be kept or removed, and removes the later copies only after confirmation.
-
-> > > > > > > 051583e6e0ed32491f181d94aa8d94af0d1889fa
 
 ## Duplicate Modes
 
