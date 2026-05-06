@@ -11,7 +11,9 @@ async function api(path, options = {}) {
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(payload.error?.message || payload.error || "Spotify request failed");
+    const spotifyMessage = payload.error?.message || payload.error;
+    const missingScopes = payload.sieve_scopes?.missing?.length ? ` Missing scopes: ${payload.sieve_scopes.missing.join(", ")}.` : "";
+    throw new Error(`${spotifyMessage || "Spotify request failed"}${missingScopes}`);
   }
   return payload;
 }

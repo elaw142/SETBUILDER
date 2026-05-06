@@ -17,6 +17,7 @@ SPOTIFY_AUTH_URL = "https://accounts.spotify.com/authorize"
 SPOTIFY_TOKEN_URL = "https://accounts.spotify.com/api/token"
 SPOTIFY_API_BASE = "https://api.spotify.com/v1"
 SCOPES = "playlist-read-private playlist-read-collaborative playlist-modify-public playlist-modify-private user-read-private"
+REQUIRED_SCOPES = set(SCOPES.split())
 SPOTIFY_TIMEOUT = float(os.environ.get("SPOTIFY_TIMEOUT", "12"))
 LOGGER = logging.getLogger(__name__)
 
@@ -123,6 +124,15 @@ def current_token():
     return session["spotify_token"]["access_token"]
 
 
+def token_scopes():
+    token = session.get("spotify_token") or {}
+    granted = set((token.get("scope") or "").split())
+    return {
+        "granted": sorted(granted),
+        "missing": sorted(REQUIRED_SCOPES - granted),
+    }
+
+
 def refresh_token(token):
     refresh = token.get("refresh_token")
     if not refresh:
@@ -142,7 +152,9 @@ def refresh_token(token):
 def api_request(method, path, **kwargs):
     headers = kwargs.pop("headers", {})
     headers["Authorization"] = f"Bearer {current_token()}"
-    headers.setdefault("Content-Type", "application/json")
+    headers.setdefault("Accept", "application/json")
+    if method.upper() in {"POST", "PUT", "PATCH", "DELETE"}:
+        headers.setdefault("Content-Type", "application/json")
 
     try:
         response = requests.request(
@@ -164,13 +176,23 @@ def api_request(method, path, **kwargs):
     if response.status_code >= 400:
         if response.status_code == 429:
             payload["retry_after"] = response.headers.get("Retry-After", "")
-        LOGGER.warning("Spotify API %s %s failed with %s: %s", method, path, response.status_code, payload)
+        payload["sieve_scopes"] = token_scopes()
+        LOGGER.warning(
+            "Spotify API %s %s failed with %s: %s; scopes=%s",
+            method,
+            path,
+            response.status_code,
+            payload,
+            token_scopes(),
+        )
         raise SpotifyError("Spotify API request failed", response.status_code, payload)
     return payload
 
 
 def me():
-    return api_request("GET", "/me")
+    profile = api_request("GET", "/me")
+    profile["sieve_scopes"] = token_scopes()
+    return profile
 
 
 def list_playlists():
@@ -205,18 +227,7 @@ def playlist_items(playlist_id):
     items = []
     offset = 0
     while True:
-        payload = api_request(
-            "GET",
-            f"/playlists/{playlist_id}/tracks",
-            params={
-                "limit": 100,
-                "offset": offset,
-                "fields": (
-                    "next,items(added_at,is_local,track(id,uri,name,duration_ms,"
-                    "album(release_date,images),artists(name)))"
-                ),
-            },
-        )
+        payload = playlist_items_page(playlist_id, offset)
         page_items = payload.get("items") or []
         for index, item in enumerate(page_items):
             item["position"] = offset + index
@@ -225,6 +236,28 @@ def playlist_items(playlist_id):
             break
         offset += 100
     return items
+
+
+def playlist_items_page(playlist_id, offset):
+    projected_params = {
+        "limit": 100,
+        "offset": offset,
+        "fields": (
+            "next,items(added_at,is_local,track(id,uri,name,duration_ms,"
+            "album(release_date,images),artists(name)))"
+        ),
+    }
+    try:
+        return api_request("GET", f"/playlists/{playlist_id}/tracks", params=projected_params)
+    except SpotifyError as exc:
+        if exc.status_code != 403:
+            raise
+        LOGGER.warning("Retrying playlist tracks without fields projection for %s", playlist_id)
+        return api_request(
+            "GET",
+            f"/playlists/{playlist_id}/tracks",
+            params={"limit": 100, "offset": offset},
+        )
 
 
 def normalize_track(track):
