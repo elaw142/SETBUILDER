@@ -27,6 +27,7 @@ export default function App() {
   const [previewTrack, setPreviewTrack] = useState(null);
 
   const selectedPlaylist = useMemo(() => playlists.find((playlist) => playlist.id === playlistId), [playlists, playlistId]);
+  const eligiblePlaylists = useMemo(() => playlists.filter((playlist) => playlist.scanEligible), [playlists]);
 
   useEffect(() => {
     if (!spotify.user) return;
@@ -39,9 +40,13 @@ export default function App() {
     try {
       const payload = await spotify.playlists();
       setPlaylists(payload.playlists || []);
-      setPlaylistId((current) => current || payload.playlists?.[0]?.id || "");
+      const firstEligible = payload.playlists?.find((playlist) => playlist.scanEligible);
+      setPlaylistId((current) => {
+        const currentPlaylist = payload.playlists?.find((playlist) => playlist.id === current);
+        return currentPlaylist?.scanEligible ? current : firstEligible?.id || "";
+      });
       setStatus("idle");
-      setMessage("");
+      setMessage(firstEligible ? "" : "No playlists owned by this Spotify account were found.");
     } catch (err) {
       setStatus("error");
       setMessage(err.message);
@@ -50,6 +55,11 @@ export default function App() {
 
   const scan = async () => {
     if (!playlistId) return;
+    if (!selectedPlaylist?.scanEligible) {
+      setStatus("error");
+      setMessage("Spotify only allows SIEVE to scan playlists owned by the connected account.");
+      return;
+    }
     setStatus("loading");
     setMessage("Scanning playlist");
     setAnalysis(null);
@@ -104,12 +114,16 @@ export default function App() {
                 Playlist
                 <select value={playlistId} onChange={(event) => setPlaylistId(event.target.value)}>
                   {playlists.map((playlist) => (
-                    <option key={playlist.id} value={playlist.id}>
-                      {playlist.name} ({playlist.tracksTotal})
+                    <option key={playlist.id} value={playlist.id} disabled={!playlist.scanEligible}>
+                      {playlist.name} ({playlist.tracksTotal}){playlist.scanEligible ? "" : ` / owned by ${playlist.owner || "another account"}`}
                     </option>
                   ))}
                 </select>
               </label>
+
+              <p className="status-line">
+                {eligiblePlaylists.length} of {playlists.length} playlists are owned by this Spotify account and can be scanned.
+              </p>
 
               <div className="mode-tabs">
                 <button className={mode === "exact" ? "active" : ""} onClick={() => setMode("exact")} type="button">
@@ -123,7 +137,7 @@ export default function App() {
                 </button>
               </div>
 
-              <button className="action-button" onClick={scan} disabled={!playlistId || status === "loading"} type="button">
+              <button className="action-button" onClick={scan} disabled={!playlistId || !selectedPlaylist?.scanEligible || status === "loading"} type="button">
                 <Search size={22} strokeWidth={3} /> Scan
               </button>
               <button className="action-button danger-button" onClick={remove} disabled={!analysis?.duplicateCount || status === "loading"} type="button">

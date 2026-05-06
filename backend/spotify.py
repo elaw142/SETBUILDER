@@ -191,11 +191,15 @@ def api_request(method, path, **kwargs):
 
 def me():
     profile = api_request("GET", "/me")
+    session["spotify_user_id"] = profile.get("id")
     profile["sieve_scopes"] = token_scopes()
     return profile
 
 
 def list_playlists():
+    if not session.get("spotify_user_id"):
+        me()
+    user_id = session.get("spotify_user_id")
     items = []
     offset = 0
     while True:
@@ -204,20 +208,25 @@ def list_playlists():
         if not payload.get("next"):
             break
         offset += 50
-    playlists = [compact_playlist(item) for item in items]
+    playlists = [compact_playlist(item, user_id) for item in items]
     session["playlist_cache"] = {playlist["id"]: playlist for playlist in playlists if playlist.get("id")}
     return {"playlists": playlists}
 
 
-def compact_playlist(playlist):
+def compact_playlist(playlist, user_id):
     images = playlist.get("images") or []
     owner = playlist.get("owner") or {}
+    owner_id = owner.get("id") or ""
+    owned_by_user = bool(user_id and owner_id == user_id)
     return {
         "id": playlist.get("id"),
         "name": playlist.get("name"),
         "description": playlist.get("description") or "",
         "image": images[0].get("url") if images else "",
         "owner": owner.get("display_name") or owner.get("id") or "",
+        "ownerId": owner_id,
+        "ownedByUser": owned_by_user,
+        "scanEligible": owned_by_user,
         "tracksTotal": (playlist.get("tracks") or {}).get("total", 0),
         "public": playlist.get("public"),
     }
@@ -253,11 +262,29 @@ def playlist_items_page(playlist_id, offset):
         if exc.status_code != 403:
             raise
         LOGGER.warning("Retrying playlist tracks without fields projection for %s", playlist_id)
-        return api_request(
-            "GET",
-            f"/playlists/{playlist_id}/tracks",
-            params={"limit": 100, "offset": offset},
-        )
+        try:
+            return api_request(
+                "GET",
+                f"/playlists/{playlist_id}/tracks",
+                params={"limit": 100, "offset": offset},
+            )
+        except SpotifyError as retry_exc:
+            if retry_exc.status_code != 403:
+                raise
+            playlist_meta = session.get("playlist_cache", {}).get(playlist_id, {})
+            owner = playlist_meta.get("owner") or "another account"
+            raise SpotifyError(
+                "Spotify refused access to this playlist's tracks",
+                403,
+                {
+                    "error": (
+                        "Spotify refused access to this playlist's tracks. "
+                        f"SIEVE can only scan playlists owned by the connected Spotify account; this playlist is owned by {owner}."
+                    ),
+                    "playlist": playlist_meta,
+                    "sieve_scopes": token_scopes(),
+                },
+            )
 
 
 def normalize_track(track):
