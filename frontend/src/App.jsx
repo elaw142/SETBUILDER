@@ -16,6 +16,14 @@ function normalizePreviewTrack(track) {
   };
 }
 
+function formatDuration(durationMs) {
+  if (!durationMs) return "0:00";
+  const totalSeconds = Math.round(durationMs / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = String(totalSeconds % 60).padStart(2, "0");
+  return `${minutes}:${seconds}`;
+}
+
 export default function App() {
   const spotify = useSpotify();
   const [playlists, setPlaylists] = useState([]);
@@ -272,7 +280,7 @@ function Occurrence({ label, occurrence, onKeep, onPreview, keep = false }) {
       <span className="min-w-0">
         <span className="block truncate font-bold">{track.name}</span>
         <span className="block truncate text-xs uppercase text-muted">
-          {track.artist} {track.year ? ` / ${track.year}` : ""} / #{occurrence.position + 1} / {label}
+          {track.artist} {track.year ? ` / ${track.year}` : ""} / {formatDuration(track.durationMs)} / {label}
         </span>
       </span>
       <button className="preview-button" onClick={() => onPreview(track)} type="button">
