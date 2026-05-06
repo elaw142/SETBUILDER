@@ -1,4 +1,4 @@
-import { AlertTriangle, Check, RefreshCw, Scissors, Search, ShieldCheck } from "lucide-react";
+import { AlertTriangle, Check, RefreshCw, Scissors, Search, ShieldCheck, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import Header from "./components/Header.jsx";
 import PreviewPanel from "./components/PreviewPanel.jsx";
@@ -25,6 +25,8 @@ export default function App() {
   const [status, setStatus] = useState("idle");
   const [message, setMessage] = useState("");
   const [previewTrack, setPreviewTrack] = useState(null);
+  const [keepPositions, setKeepPositions] = useState({});
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const selectedPlaylist = useMemo(() => playlists.find((playlist) => playlist.id === playlistId), [playlists, playlistId]);
   const eligiblePlaylists = useMemo(() => playlists.filter((playlist) => playlist.scanEligible), [playlists]);
@@ -66,6 +68,7 @@ export default function App() {
     try {
       const payload = await spotify.duplicates(playlistId, mode);
       setAnalysis(payload);
+      setKeepPositions(Object.fromEntries((payload.groups || []).map((group) => [group.key, group.keep.position])));
       setStatus("idle");
       setMessage("");
     } catch (err) {
@@ -76,12 +79,11 @@ export default function App() {
 
   const remove = async () => {
     if (!playlistId || !analysis?.duplicateCount) return;
-    const confirmed = window.confirm(`Remove ${analysis.duplicateCount} duplicate tracks from "${analysis.playlist.name}"?`);
-    if (!confirmed) return;
+    setConfirmOpen(false);
     setStatus("loading");
     setMessage("Removing duplicate tracks");
     try {
-      const payload = await spotify.removeDuplicates(playlistId, mode);
+      const payload = await spotify.removeDuplicates(playlistId, mode, keepPositions);
       setStatus("success");
       setMessage(`Removed ${payload.removedCount} duplicates`);
       await scan();
@@ -89,6 +91,10 @@ export default function App() {
       setStatus("error");
       setMessage(err.message);
     }
+  };
+
+  const chooseKeeper = (groupKey, position) => {
+    setKeepPositions((current) => ({ ...current, [groupKey]: position }));
   };
 
   return (
@@ -140,7 +146,7 @@ export default function App() {
               <button className="action-button" onClick={scan} disabled={!playlistId || !selectedPlaylist?.scanEligible || status === "loading"} type="button">
                 <Search size={22} strokeWidth={3} /> Scan
               </button>
-              <button className="action-button danger-button" onClick={remove} disabled={!analysis?.duplicateCount || status === "loading"} type="button">
+              <button className="action-button danger-button" onClick={() => setConfirmOpen(true)} disabled={!analysis?.duplicateCount || status === "loading"} type="button">
                 <Scissors size={22} strokeWidth={3} /> Remove Extras
               </button>
 
@@ -189,10 +195,16 @@ export default function App() {
                 <span>{analysis.skippedCount} skipped</span>
               </div>
               {analysis.groups.map((group) => (
-                <DuplicateGroup key={group.key} group={group} onPreview={(track) => setPreviewTrack(normalizePreviewTrack(track))} />
+                <DuplicateGroup
+                  key={group.key}
+                  group={group}
+                  keepPosition={keepPositions[group.key] ?? group.keep.position}
+                  onKeep={chooseKeeper}
+                  onPreview={(track) => setPreviewTrack(normalizePreviewTrack(track))}
+                />
               ))}
               <p className="status-line">
-                <AlertTriangle size={18} /> The earliest playlist position is kept automatically; later copies are removed.
+                <AlertTriangle size={18} /> Choose one keeper in each duplicate group; the selected rows stay in the playlist.
               </p>
             </div>
           )}
@@ -200,30 +212,62 @@ export default function App() {
       </section>
 
       <PreviewPanel track={previewTrack} onClose={() => setPreviewTrack(null)} />
+      {confirmOpen && analysis && (
+        <div className="confirm-backdrop" role="presentation">
+          <section className="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+            <div className="duplicate-header">
+              <span id="confirm-title">Remove extras</span>
+              <button className="preview-button" onClick={() => setConfirmOpen(false)} type="button" aria-label="Close confirmation">
+                <X size={16} />
+              </button>
+            </div>
+            <p>
+              Remove {analysis.duplicateCount} duplicate tracks from {analysis.playlist.name}? Your selected keeper in each group will stay.
+            </p>
+            <div className="confirm-actions">
+              <button type="button" onClick={() => setConfirmOpen(false)}>
+                Cancel
+              </button>
+              <button className="danger-button" type="button" onClick={remove}>
+                <Scissors size={18} /> Remove Extras
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </main>
   );
 }
 
-function DuplicateGroup({ group, onPreview }) {
+function DuplicateGroup({ group, keepPosition, onKeep, onPreview }) {
+  const occurrences = [group.keep, ...group.remove];
   return (
     <div className="duplicate-group">
       <div className="duplicate-header">
         <span>{group.keep.track.name}</span>
         <span>{group.count} copies</span>
       </div>
-      <Occurrence label="Keep" occurrence={group.keep} onPreview={onPreview} keep />
-      {group.remove.map((occurrence) => (
-        <Occurrence key={`${occurrence.track.uri}-${occurrence.position}`} label="Remove" occurrence={occurrence} onPreview={onPreview} />
+      {occurrences.map((occurrence) => (
+        <Occurrence
+          key={`${occurrence.track.uri}-${occurrence.position}`}
+          label={occurrence.position === keepPosition ? "Keep" : "Remove"}
+          occurrence={occurrence}
+          onKeep={() => onKeep(group.key, occurrence.position)}
+          onPreview={onPreview}
+          keep={occurrence.position === keepPosition}
+        />
       ))}
     </div>
   );
 }
 
-function Occurrence({ label, occurrence, onPreview, keep = false }) {
+function Occurrence({ label, occurrence, onKeep, onPreview, keep = false }) {
   const track = occurrence.track;
   return (
     <div className={`occurrence-row ${keep ? "keep" : ""}`}>
-      <span className="track-check selected">{keep ? "K" : "X"}</span>
+      <button className={`track-check ${keep ? "selected" : ""}`} onClick={onKeep} type="button" aria-label={`Keep ${track.name}`}>
+        {keep ? "K" : "X"}
+      </button>
       {track.image ? <img src={track.image} alt="" /> : <span className="track-image-fallback" />}
       <span className="min-w-0">
         <span className="block truncate font-bold">{track.name}</span>

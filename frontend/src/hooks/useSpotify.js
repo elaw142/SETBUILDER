@@ -54,10 +54,10 @@ export function useSpotify() {
     },
     playlists: () => api("/api/playlists"),
     duplicates: (playlistId, mode = "exact") => api(`/api/playlists/${playlistId}/duplicates?mode=${mode}`),
-    removeDuplicates: (playlistId, mode = "exact") =>
+    removeDuplicates: (playlistId, mode = "exact", keepPositions = {}) =>
       api(`/api/playlists/${playlistId}/remove-duplicates`, {
         method: "POST",
-        body: JSON.stringify({ mode }),
+        body: JSON.stringify({ mode, keepPositions }),
       }),
   };
 }

@@ -207,8 +207,21 @@ textarea {
   line-height: 1;
 }
 
+button.track-check {
+  cursor: pointer;
+}
+
+.track-check:hover {
+  background: #111;
+  color: #ccff00;
+}
+
 .track-check.selected {
   background: #ff2d78;
+}
+
+.track-check.selected:hover {
+  color: #111;
 }
 
 .preview-button {
@@ -386,4 +399,56 @@ textarea {
   border-style: solid;
   background: #ff2d78;
   color: #111;
+}
+
+.confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(17, 17, 17, 0.62);
+}
+
+.confirm-dialog {
+  display: grid;
+  gap: 1rem;
+  width: min(30rem, 100%);
+  border: 2px solid #111;
+  background: #f2efe6;
+  box-shadow: 8px 8px 0 #111;
+  padding: 1rem;
+}
+
+.confirm-dialog p {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.45;
+  text-transform: uppercase;
+}
+
+.confirm-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.confirm-actions button {
+  display: inline-flex;
+  min-height: 3rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  border: 2px solid #111;
+  background: #ccff00;
+  color: #111;
+  font-family: "Bebas Neue", sans-serif;
+  font-size: 1.5rem;
+  text-transform: uppercase;
+}
+
+.confirm-actions .danger-button {
+  background: #ff2d78;
 }

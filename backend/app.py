@@ -65,7 +65,7 @@ def create_app():
     @app.post("/api/playlists/<playlist_id>/remove-duplicates")
     def playlist_remove_duplicates(playlist_id):
         payload = request.get_json(force=True) or {}
-        return jsonify(remove_duplicates(playlist_id, payload.get("mode", "exact")))
+        return jsonify(remove_duplicates(playlist_id, payload.get("mode", "exact"), payload.get("keepPositions") or {}))
 
     return app
 
