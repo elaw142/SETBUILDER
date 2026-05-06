@@ -46,7 +46,7 @@ export default function App() {
         return currentPlaylist?.scanEligible ? current : firstEligible?.id || "";
       });
       setStatus("idle");
-      setMessage(firstEligible ? "" : "No playlists owned by this Spotify account were found.");
+      setMessage(firstEligible ? "" : "No owned or collaborative playlists were found for this Spotify account.");
     } catch (err) {
       setStatus("error");
       setMessage(err.message);
@@ -57,7 +57,7 @@ export default function App() {
     if (!playlistId) return;
     if (!selectedPlaylist?.scanEligible) {
       setStatus("error");
-      setMessage("Spotify only allows SIEVE to scan playlists owned by the connected account.");
+      setMessage("Spotify only allows SIEVE to scan playlists owned by, or collaborative with, the connected account.");
       return;
     }
     setStatus("loading");
@@ -122,7 +122,7 @@ export default function App() {
               </label>
 
               <p className="status-line">
-                {eligiblePlaylists.length} of {playlists.length} playlists are owned by this Spotify account and can be scanned.
+                {eligiblePlaylists.length} of {playlists.length} playlists are owned by, or collaborative with, this Spotify account and can be scanned.
               </p>
 
               <div className="mode-tabs">

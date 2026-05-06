@@ -192,6 +192,7 @@ def api_request(method, path, **kwargs):
 def me():
     profile = api_request("GET", "/me")
     session["spotify_user_id"] = profile.get("id")
+    session["spotify_display_name"] = profile.get("display_name")
     profile["sieve_scopes"] = token_scopes()
     return profile
 
@@ -200,6 +201,7 @@ def list_playlists():
     if not session.get("spotify_user_id"):
         me()
     user_id = session.get("spotify_user_id")
+    display_name = session.get("spotify_display_name")
     items = []
     offset = 0
     while True:
@@ -208,25 +210,28 @@ def list_playlists():
         if not payload.get("next"):
             break
         offset += 50
-    playlists = [compact_playlist(item, user_id) for item in items]
+    playlists = [compact_playlist(item, user_id, display_name) for item in items]
     session["playlist_cache"] = {playlist["id"]: playlist for playlist in playlists if playlist.get("id")}
     return {"playlists": playlists}
 
 
-def compact_playlist(playlist, user_id):
+def compact_playlist(playlist, user_id, display_name):
     images = playlist.get("images") or []
     owner = playlist.get("owner") or {}
     owner_id = owner.get("id") or ""
-    owned_by_user = bool(user_id and owner_id == user_id)
+    owner_name = owner.get("display_name") or owner_id
+    owned_by_user = bool((user_id and owner_id == user_id) or (display_name and owner_name == display_name))
+    collaborative = bool(playlist.get("collaborative"))
     return {
         "id": playlist.get("id"),
         "name": playlist.get("name"),
         "description": playlist.get("description") or "",
         "image": images[0].get("url") if images else "",
-        "owner": owner.get("display_name") or owner.get("id") or "",
+        "owner": owner_name,
         "ownerId": owner_id,
         "ownedByUser": owned_by_user,
-        "scanEligible": owned_by_user,
+        "collaborative": collaborative,
+        "scanEligible": owned_by_user or collaborative,
         "tracksTotal": (playlist.get("tracks") or {}).get("total", 0),
         "public": playlist.get("public"),
     }
@@ -243,21 +248,21 @@ def playlist_items(playlist_id):
             items.append(item)
         if not payload.get("next"):
             break
-        offset += 100
+        offset += 50
     return items
 
 
 def playlist_items_page(playlist_id, offset):
     projected_params = {
-        "limit": 100,
+        "limit": 50,
         "offset": offset,
         "fields": (
-            "next,items(added_at,is_local,track(id,uri,name,duration_ms,"
+            "next,items(added_at,is_local,item(id,uri,name,duration_ms,"
             "album(release_date,images),artists(name)))"
         ),
     }
     try:
-        return api_request("GET", f"/playlists/{playlist_id}/tracks", params=projected_params)
+        return api_request("GET", f"/playlists/{playlist_id}/items", params=projected_params)
     except SpotifyError as exc:
         if exc.status_code != 403:
             raise
@@ -265,8 +270,8 @@ def playlist_items_page(playlist_id, offset):
         try:
             return api_request(
                 "GET",
-                f"/playlists/{playlist_id}/tracks",
-                params={"limit": 100, "offset": offset},
+                f"/playlists/{playlist_id}/items",
+                params={"limit": 50, "offset": offset},
             )
         except SpotifyError as retry_exc:
             if retry_exc.status_code != 403:
@@ -279,7 +284,7 @@ def playlist_items_page(playlist_id, offset):
                 {
                     "error": (
                         "Spotify refused access to this playlist's tracks. "
-                        f"SIEVE can only scan playlists owned by the connected Spotify account; this playlist is owned by {owner}."
+                        f"Spotify only allows SIEVE to scan playlists owned by, or collaborative with, the connected account. This playlist is owned by {owner}."
                     ),
                     "playlist": playlist_meta,
                     "sieve_scopes": token_scopes(),
@@ -325,7 +330,7 @@ def analyse_duplicates(playlist_id, mode="exact"):
     skipped = 0
 
     for item in playlist_items(playlist_id):
-        track = item.get("track") or {}
+        track = item.get("item") or item.get("track") or {}
         if item.get("is_local") or not track.get("uri"):
             skipped += 1
             continue
