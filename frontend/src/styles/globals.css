@@ -262,6 +262,7 @@ button.track-check {
 
 .duplicate-header {
   display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: 1rem;
   border-bottom: 2px solid #111;
@@ -269,6 +270,22 @@ button.track-check {
   font-size: 0.75rem;
   font-weight: 700;
   text-transform: uppercase;
+}
+
+.mini-command {
+  flex: 0 0 auto;
+  border: 2px solid #111;
+  background: #ccff00;
+  padding: 0.25rem 0.45rem;
+  color: #111;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.mini-command:hover {
+  background: #111;
+  color: #ccff00;
 }
 
 .occurrence-row {

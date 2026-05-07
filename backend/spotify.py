@@ -379,13 +379,15 @@ def remove_duplicates(playlist_id, mode="exact", keep_positions=None, removal_it
     removals = []
     for group in analysis["groups"]:
         occurrences = [group["keep"], *group["remove"]]
-        selected_position = keep_positions.get(group["key"], group["keep"]["position"])
+        selected_positions = keep_positions.get(group["key"], [group["keep"]["position"]])
+        if not isinstance(selected_positions, list):
+            selected_positions = [selected_positions]
         try:
-            selected_position = int(selected_position)
+            selected_positions = {int(position) for position in selected_positions}
         except (TypeError, ValueError):
-            selected_position = group["keep"]["position"]
+            selected_positions = {group["keep"]["position"]}
         for occurrence in occurrences:
-            if occurrence["position"] != selected_position:
+            if occurrence["position"] not in selected_positions:
                 removals.append({"uri": occurrence["track"]["uri"]})
 
     result = remove_playlist_items(playlist_id, removals, analysis["mode"])

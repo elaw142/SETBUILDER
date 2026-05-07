@@ -38,6 +38,7 @@ export default function App() {
 
   const selectedPlaylist = useMemo(() => playlists.find((playlist) => playlist.id === playlistId), [playlists, playlistId]);
   const eligiblePlaylists = useMemo(() => playlists.filter((playlist) => playlist.scanEligible), [playlists]);
+  const pendingRemovals = useMemo(() => buildRemovalItems(analysis, keepPositions), [analysis, keepPositions]);
 
   useEffect(() => {
     if (!spotify.user) return;
@@ -76,7 +77,7 @@ export default function App() {
     try {
       const payload = await spotify.duplicates(playlistId, mode);
       setAnalysis(payload);
-      setKeepPositions(Object.fromEntries((payload.groups || []).map((group) => [group.key, group.keep.position])));
+      setKeepPositions(Object.fromEntries((payload.groups || []).map((group) => [group.key, [group.keep.position]])));
       setStatus("idle");
       setMessage("");
     } catch (err) {
@@ -91,8 +92,7 @@ export default function App() {
     setStatus("loading");
     setMessage("Removing duplicate tracks");
     try {
-      const removals = buildRemovalItems(analysis, keepPositions);
-      const payload = await spotify.removeDuplicates(playlistId, mode, keepPositions, removals);
+      const payload = await spotify.removeDuplicates(playlistId, mode, keepPositions, pendingRemovals);
       setStatus("success");
       setMessage(`Removed ${payload.removedCount} duplicates. Scan again when you want a fresh report.`);
       setAnalysis(null);
@@ -102,8 +102,18 @@ export default function App() {
     }
   };
 
-  const chooseKeeper = (groupKey, position) => {
-    setKeepPositions((current) => ({ ...current, [groupKey]: position }));
+  const toggleKeeper = (groupKey, position) => {
+    setKeepPositions((current) => {
+      const currentPositions = current[groupKey] || [];
+      const hasPosition = currentPositions.includes(position);
+      if (hasPosition && currentPositions.length === 1) return current;
+      const nextPositions = hasPosition ? currentPositions.filter((item) => item !== position) : [...currentPositions, position];
+      return { ...current, [groupKey]: nextPositions.sort((a, b) => a - b) };
+    });
+  };
+
+  const setGroupKeepers = (groupKey, positions) => {
+    setKeepPositions((current) => ({ ...current, [groupKey]: positions }));
   };
 
   return (
@@ -155,8 +165,8 @@ export default function App() {
               <button className="action-button" onClick={scan} disabled={!playlistId || !selectedPlaylist?.scanEligible || status === "loading"} type="button">
                 <Search size={22} strokeWidth={3} /> Scan
               </button>
-              <button className="action-button danger-button" onClick={() => setConfirmOpen(true)} disabled={!analysis?.duplicateCount || status === "loading"} type="button">
-                <Scissors size={22} strokeWidth={3} /> Remove Extras
+              <button className="action-button danger-button" onClick={() => setConfirmOpen(true)} disabled={!pendingRemovals.length || status === "loading"} type="button">
+                <Scissors size={22} strokeWidth={3} /> Remove {pendingRemovals.length}
               </button>
 
               <p className="status-line">
@@ -200,20 +210,21 @@ export default function App() {
               <div className="report-strip">
                 <span>{analysis.playlist.name}</span>
                 <span>{analysis.groupCount} groups</span>
-                <span>{analysis.duplicateCount} removable</span>
+                <span>{pendingRemovals.length} selected</span>
                 <span>{analysis.skippedCount} skipped</span>
               </div>
               {analysis.groups.map((group) => (
                 <DuplicateGroup
                   key={group.key}
                   group={group}
-                  keepPosition={keepPositions[group.key] ?? group.keep.position}
-                  onKeep={chooseKeeper}
+                  keepPositions={keepPositions[group.key] || [group.keep.position]}
+                  onToggleKeep={toggleKeeper}
+                  onSetKeepers={setGroupKeepers}
                   onPreview={(track) => setPreviewTrack(normalizePreviewTrack(track))}
                 />
               ))}
               <p className="status-line">
-                <AlertTriangle size={18} /> Choose one keeper in each duplicate group; the selected rows stay in the playlist.
+                <AlertTriangle size={18} /> Keep one, many, or all copies in each group. Pink rows will be removed.
               </p>
             </div>
           )}
@@ -231,7 +242,7 @@ export default function App() {
               </button>
             </div>
             <p>
-              Remove {analysis.duplicateCount} duplicate tracks from {analysis.playlist.name}? Your selected keeper in each group will stay.
+              Remove {pendingRemovals.length} duplicate tracks from {analysis.playlist.name}? Every row marked K will stay.
             </p>
             <div className="confirm-actions">
               <button type="button" onClick={() => setConfirmOpen(false)}>
@@ -250,29 +261,35 @@ export default function App() {
 
 function buildRemovalItems(analysis, keepPositions) {
   return (analysis?.groups || []).flatMap((group) => {
-    const selectedPosition = Number(keepPositions[group.key] ?? group.keep.position);
+    const selectedPositions = new Set((keepPositions[group.key] || [group.keep.position]).map(Number));
     return [group.keep, ...group.remove]
-      .filter((occurrence) => occurrence.position !== selectedPosition)
+      .filter((occurrence) => !selectedPositions.has(occurrence.position))
       .map((occurrence) => ({ uri: occurrence.track.uri }));
   });
 }
 
-function DuplicateGroup({ group, keepPosition, onKeep, onPreview }) {
+function DuplicateGroup({ group, keepPositions, onToggleKeep, onSetKeepers, onPreview }) {
   const occurrences = [group.keep, ...group.remove];
+  const keepSet = new Set(keepPositions);
+  const allPositions = occurrences.map((occurrence) => occurrence.position);
+  const allKept = occurrences.every((occurrence) => keepSet.has(occurrence.position));
   return (
     <div className="duplicate-group">
       <div className="duplicate-header">
         <span>{group.keep.track.name}</span>
-        <span>{group.count} copies</span>
+        <span>{keepPositions.length} kept / {group.count} copies</span>
+        <button className="mini-command" onClick={() => onSetKeepers(group.key, allKept ? [group.keep.position] : allPositions)} type="button">
+          {allKept ? "Keep One" : "Keep All"}
+        </button>
       </div>
       {occurrences.map((occurrence) => (
         <Occurrence
           key={`${occurrence.track.uri}-${occurrence.position}`}
-          label={occurrence.position === keepPosition ? "Keep" : "Remove"}
+          label={keepSet.has(occurrence.position) ? "Keep" : "Remove"}
           occurrence={occurrence}
-          onKeep={() => onKeep(group.key, occurrence.position)}
+          onKeep={() => onToggleKeep(group.key, occurrence.position)}
           onPreview={onPreview}
-          keep={occurrence.position === keepPosition}
+          keep={keepSet.has(occurrence.position)}
         />
       ))}
     </div>
