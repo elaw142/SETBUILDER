@@ -67,5 +67,8 @@ jobs:
 
             docker compose down --remove-orphans || true
             docker rm -f sieve-backend sieve-frontend 2>/dev/null || true
-            docker compose up --build -d
+            if ! docker compose up --build -d; then
+              docker builder prune -af
+              docker compose up --build -d
+            fi
             docker compose ps
